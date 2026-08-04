@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}User Management – BDC Vocabulary{% endblock %}
+
+{% block content %}
+<h1>User Management</h1>
+
+<div style="margin-bottom:1.5em;">
+    <button type="button" onclick="document.getElementById('create-dialog').showModal()"
+            style="background:#059669;border-color:#059669;color:#fff;">+ Create New User</button>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>User</th><th>Status</th><th>Nickname</th>
+            <th>Daily AI Limit</th><th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for u in user_data %}
+    <tr>
+        <td><strong>{{ u.username }}</strong></td>
+        <td>
+            {% if u.is_active %}
+                <span style="color:#059669;font-weight:bold;">Active</span>
+            {% else %}
+                <span style="color:#dc2626;font-weight:bold;">Suspended</span>
+            {% endif %}
+        </td>
+        <td>{{ u.nickname|default:"—" }}</td>
+        <td>
+            {% if u.daily_limit >= 0 %}
+                <strong>{{ u.daily_limit }}</strong>
+            {% else %}
+                {{ u.global_limit }} <small>(global)</small>
+            {% endif %}
+        </td>
+        <td style="white-space:nowrap;">
+            <button type="button" onclick="openEdit({{ u.id }})"
+                    style="margin:0;padding:2px 8px;font-size:0.8rem;">Edit</button>
+            <form method="post" action="{% url 'dashboard:user_edit' u.id %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="toggle_active">
+                <button type="submit" style="margin:0;padding:2px 8px;font-size:0.8rem;"
+                    class="{% if u.is_active %}outline contrast{% endif %}">
+                    {% if u.is_active %}Suspend{% else %}Activate{% endif %}
+                </button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<!-- Edit Modal -->
+<dialog id="edit-dialog">
+    <article>
+        <header><h2 id="edit-title">Edit User</h2></header>
+        <form method="post" id="edit-form" action="">
+            {% csrf_token %}
+            <label>Change Username
+                <input type="text" name="username" id="edit-username" required>
+            </label>
+            <button type="submit" name="action" value="change_username"
+                    style="margin-bottom:1em;">Update Username</button>
+            <hr>
+            <label>New Password (min 4 chars)
+                <input type="password" name="password" id="edit-password" minlength="4">
+            </label>
+            <button type="submit" name="action" value="change_password"
+                    style="margin-bottom:1em;">Change Password</button>
+            <hr>
+            <label>Daily AI Limit (-1 = use global: {{ user_data.0.global_limit }})
+                <input type="number" name="daily_limit" id="edit-limit" min="-1" max="99">
+            </label>
+            <button type="submit" name="action" value="set_limit">Set Limit</button>
+            <footer style="margin-top:1em;">
+                <button type="button" class="secondary"
+                        onclick="document.getElementById('edit-dialog').close()">Close</button>
+            </footer>
+        </form>
+    </article>
+</dialog>
+
+<!-- Create User Modal -->
+<dialog id="create-dialog">
+    <article>
+        <header><h2>Create New User</h2></header>
+        <form method="post" action="{% url 'dashboard:user_edit' 0 %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_user">
+            <label>Username
+                <input type="text" name="username" required>
+            </label>
+            <label>Password (min 4 chars)
+                <input type="password" name="password" required minlength="4">
+            </label>
+            <footer>
+                <button type="submit">Create User</button>
+                <button type="button" class="secondary"
+                        onclick="document.getElementById('create-dialog').close()">Cancel</button>
+            </footer>
+        </form>
+    </article>
+</dialog>
+
+<script>
+var userData = { {% for u in user_data %}{{ u.id }}:{name:"{{ u.username|escapejs }}",limit:{{ u.daily_limit }}}{% if not forloop.last %},{% endif %}{% endfor %} };
+function openEdit(userId) {
+    var data = userData[userId];
+    var d = document.getElementById('edit-dialog');
+    document.getElementById('edit-title').textContent = 'Edit: ' + data.name;
+    document.getElementById('edit-form').action = '/admin/users/' + userId + '/edit/';
+    document.getElementById('edit-username').value = data.name;
+    document.getElementById('edit-limit').value = data.limit;
+    d.showModal();
+}
+</script>
+{% endblock %}

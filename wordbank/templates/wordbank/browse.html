@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}{{ word_bank.name }} – Word Banks{% endblock %}
+
+{% block content %}
+<h1>{{ word_bank.name }}</h1>
+<p><strong>{{ total }}</strong> words | <a href="{% url 'wordbank:manage' %}">← Back to Word Banks</a></p>
+
+<!-- Quick-jump alphabet -->
+<nav style="position:sticky;top:0;z-index:10;background:var(--pico-background-color);padding:0.5em 0;border-bottom:1px solid var(--pico-muted-border-color);margin-bottom:1em;">
+    {% for letter in letters %}
+    <a href="#letter-{{ letter }}" style="display:inline-block;min-width:1.8em;text-align:center;font-weight:bold;padding:2px 4px;margin:0 1px;">{{ letter }}</a>
+    {% endfor %}
+</nav>
+
+<hr>
+
+<!-- Import CSV -->
+<details>
+    <summary>Import CSV</summary>
+    <form method="post" action="{% url 'wordbank:import_csv' word_bank.id %}" enctype="multipart/form-data" style="margin-top: 1em;">
+        {% csrf_token %}
+        <label>
+            CSV File (Comma-separated: "word","pronounce","definition")
+            <input type="file" name="csv_file" accept=".csv,.tsv,.txt" required>
+        </label>
+        <button type="submit">Import</button>
+    </form>
+</details>
+
+<p>
+    <a href="{% url 'wordbank:export_csv' word_bank.id %}" role="button" class="secondary outline">Export CSV</a>
+</p>
+
+<hr>
+
+<!-- Grouped word list -->
+{% if grouped %}
+{% for letter, entries in grouped.items %}
+<h2 id="letter-{{ letter }}" style="border-bottom:2px solid var(--pico-primary);padding-bottom:0.25em;margin-top:1.5em;">{{ letter }}</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Word</th>
+            <th>Definition</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in entries %}
+        <tr>
+            <td style="white-space:nowrap;">{{ entry.word }}</td>
+            <td>{{ entry.definition }}</td>
+            <td>
+                {% if entry.is_mastered %}
+                    <span class="status-badge status-mastered">Mastered</span>
+                {% elif entry.status == "review" %}
+                    <span class="status-badge status-review">Review</span>
+                {% elif entry.status == "learning" %}
+                    <span class="status-badge status-learning">Learning</span>
+                {% else %}
+                    <span class="status-badge status-new">New</span>
+                {% endif %}
+            </td>
+            <td style="white-space:nowrap;">
+                <button type="button"
+                        onclick="editWord({{ entry.id }})"
+                        style="margin:0; padding:2px 8px; font-size:0.8rem;">Edit</button>
+                {% if not entry.is_mastered %}
+                <form method="post" action="{% url 'wordbank:master_word' entry.id %}"
+                      style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit"
+                            style="margin:0; padding:2px 8px; font-size:0.8rem; background:#059669; border-color:#059669; color:#fff;">Master</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endfor %}
+{% else %}
+<p>No words in this bank. Import a CSV to get started.</p>
+{% endif %}
+
+<!-- Edit Word Modal -->
+<dialog id="edit-dialog">
+    <article>
+        <header>
+            <h2 id="edit-title">Edit Word</h2>
+        </header>
+        <form method="post" id="edit-form" action="">
+            {% csrf_token %}
+            <label>Word
+                <input type="text" name="word" id="edit-word" required>
+            </label>
+            <label>Definition (POS embedded, e.g. "vt. 放弃; n. 摘要")
+                <input type="text" name="definition" id="edit-def">
+            </label>
+            <label>
+                <input type="checkbox" name="is_phrase" id="edit-phrase">
+                Phrase
+            </label>
+            <footer>
+                <button type="submit">Save</button>
+                <button type="button" class="secondary" onclick="document.getElementById('edit-dialog').close()">Cancel</button>
+            </footer>
+        </form>
+    </article>
+</dialog>
+
+<script>
+const wordData = {
+    {% for letter, entries in grouped.items %}
+    {% for entry in entries %}
+    {{ entry.id }}: {word:"{{ entry.word|escapejs }}", def:"{{ entry.definition|escapejs }}", phrase:{{ entry.is_phrase|yesno:"true,false"}} },
+    {% endfor %}
+    {% endfor %}
+};
+
+// Fix trailing comma
+(function(){ for(let k in wordData){} })()
+
+function editWord(wordId) {
+    const data = wordData[wordId];
+    const dialog = document.getElementById('edit-dialog');
+    document.getElementById('edit-title').textContent = 'Edit: ' + data.word;
+    document.getElementById('edit-form').action = '/bank/word/' + wordId + '/edit/';
+    document.getElementById('edit-word').value = data.word;
+    document.getElementById('edit-def').value = data.def;
+    document.getElementById('edit-phrase').checked = data.phrase;
+    dialog.showModal();
+}
+</script>
+{% endblock %}

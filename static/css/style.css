@@ -1,0 +1,325 @@
+/* BDC Vocabulary — Custom Styles */
+
+/* ---- Word Highlighting ---- */
+.word-target {
+    font-weight: bold;
+    background: #fde68a;
+    color: #1a1a1a;
+    padding: 0 3px;
+    border-radius: 3px;
+}
+
+.word-mastered {
+    background: rgba(128, 128, 128, 0.3);
+    color: inherit;
+    padding: 0 3px;
+    border-radius: 3px;
+    font-weight: 400;
+}
+
+/* Dark theme overrides */
+[data-theme="dark"] .word-target,
+:root:not([data-theme="light"]) .word-target {
+    background: #b8860b;
+    color: #fff;
+}
+
+[data-theme="dark"] .word-mastered,
+:root:not([data-theme="light"]) .word-mastered {
+    background: rgba(255, 255, 255, 0.08);
+    color: #9ca3af;
+}
+
+@media (prefers-color-scheme: dark) {
+    .word-target {
+        background: #b8860b;
+        color: #fff;
+    }
+    .word-mastered {
+        background: rgba(255, 255, 255, 0.08);
+        color: #9ca3af;
+    }
+}
+
+/* Reset to light when explicitly light */
+[data-theme="light"] .word-target {
+    background: #fde68a;
+    color: #1a1a1a;
+}
+
+[data-theme="light"] .word-mastered {
+    background: rgba(128, 128, 128, 0.2);
+    color: #6b7280;
+}
+
+/* ---- Word Review Cards ---- */
+.word-review-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1em;
+}
+
+.word-card {
+    transition: transform 0.15s ease;
+}
+
+.word-card:hover {
+    transform: translateY(-2px);
+}
+
+.word-card h3 {
+    margin-bottom: 0.25em;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-new      { background: #dbeafe; color: #1e40af; }
+.status-learning  { background: #fef3c7; color: #92400e; }
+.status-mastered  { background: #d1fae5; color: #065f46; }
+.status-review    { background: #ede9fe; color: #5b21b6; }
+.status-removed   { background: #fee2e2; color: #991b1b; }
+
+/* ---- Quiz Results ---- */
+.quiz-result-correct {
+    color: #065f46;
+    font-weight: bold;
+}
+
+.quiz-result-incorrect {
+    color: #991b1b;
+    text-decoration: line-through;
+}
+
+/* ---- Heatmap ---- */
+.heatmap-container {
+    overflow-x: auto;
+    padding: 1em 0;
+}
+
+.heatmap-grid {
+    display: grid;
+    grid-template-columns: repeat(53, 12px);
+    grid-template-rows: repeat(7, 12px);
+    gap: 2px;
+}
+
+.heatmap-cell {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.heatmap-cell.level-0 { background: #e5e7eb; }
+.heatmap-cell.level-1 { background: #a7f3d0; }
+.heatmap-cell.level-2 { background: #6ee7b7; }
+.heatmap-cell.level-3 { background: #34d399; }
+.heatmap-cell.level-4 { background: #059669; }
+
+.heatmap-header {
+    font-size: 0.65rem;
+    color: #6b7280;
+    text-align: center;
+}
+
+/* ---- Messages ---- */
+.message-success { background: #d1fae5; border-color: #059669; }
+.message-error   { background: #fee2e2; border-color: #dc2626; }
+.message-info    { background: #dbeafe; border-color: #2563eb; }
+
+/* ---- Responsive ---- */
+
+/* iPad / tablet (≤1024px) */
+@media (max-width: 1024px) {
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .word-review-grid {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+
+    nav.container-fluid {
+        padding: 0.5rem 1rem;
+    }
+
+    nav ul {
+        gap: 0.5rem;
+    }
+
+    table {
+        font-size: 0.9rem;
+    }
+
+    td input {
+        min-width: 80px !important;
+    }
+}
+
+/* iPhone / small phone (≤768px) */
+@media (max-width: 768px) {
+    .word-review-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Stack nav vertically */
+    nav.container-fluid {
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.75rem;
+    }
+
+    nav ul {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.3rem;
+    }
+
+    nav li {
+        font-size: 0.9rem;
+    }
+
+    /* Make table scrollable on mobile */
+    table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    th, td {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+    }
+
+    /* Full-width buttons */
+    button, [role="button"], input[type="submit"] {
+        width: 100%;
+    }
+
+    /* Form elements full width */
+    input, select, textarea {
+        width: 100%;
+    }
+
+    /* Article reading */
+    article > p {
+        font-size: 1rem;
+        line-height: 1.7;
+    }
+
+    h1 { font-size: 1.6rem; }
+    h2 { font-size: 1.3rem; }
+    h3 { font-size: 1.1rem; }
+
+    /* Narrower heatmap cells */
+    .heatmap-grid {
+        grid-template-columns: repeat(53, 8px);
+        grid-template-rows: repeat(7, 8px);
+        gap: 1px;
+    }
+
+    .heatmap-cell {
+        width: 8px;
+        height: 8px;
+    }
+
+    /* Stats cards */
+    .grid > article {
+        padding: 0.75rem;
+    }
+
+    /* Quiz form */
+    fieldset {
+        padding: 0.75rem;
+    }
+
+    fieldset label {
+        font-size: 0.95rem;
+    }
+
+    /* Modals */
+    dialog article {
+        width: 95vw;
+        max-width: 95vw;
+        padding: 1rem;
+    }
+
+    /* Word cards */
+    .word-card h3 {
+        font-size: 1rem;
+    }
+}
+
+/* Small iPhone (≤430px, e.g. iPhone 14/15) */
+@media (max-width: 430px) {
+    nav li a {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.5rem;
+    }
+
+    nav li strong a {
+        font-size: 1rem;
+    }
+
+    body {
+        font-size: 15px;
+    }
+
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.15rem; }
+
+    .container {
+        padding: 0.5rem;
+    }
+
+    article {
+        padding: 0.75rem;
+    }
+
+    /* Smaller word highlight */
+    .word-target, .word-mastered {
+        padding: 0 1px;
+    }
+
+    /* Interest checkboxes inline */
+    fieldset label {
+        display: block;
+        margin-bottom: 0.3rem;
+    }
+
+    /* Heatmap even smaller */
+    .heatmap-grid {
+        grid-template-columns: repeat(53, 6px);
+        grid-template-rows: repeat(7, 6px);
+        gap: 0.5px;
+    }
+
+    .heatmap-cell {
+        width: 6px;
+        height: 6px;
+    }
+}
+
+/* ---- Article content ---- */
+article > p {
+    line-height: 1.8;
+    margin-bottom: 1em;
+}
+
+/* ---- Range slider value display ---- */
+#complexity-value {
+    display: inline-block;
+    min-width: 1.5em;
+    text-align: center;
+}

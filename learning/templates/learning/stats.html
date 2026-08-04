@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Stats – BDC Vocabulary{% endblock %}
+
+{% block content %}
+<h1>Statistics</h1>
+
+<div class="grid">
+    <article>
+        <h2>{{ total_new }}</h2>
+        <p>New Words</p>
+    </article>
+    <article>
+        <h2>{{ total_learning }}</h2>
+        <p>Learning</p>
+    </article>
+    <article>
+        <h2>{{ total_mastered }}</h2>
+        <p>Mastered</p>
+    </article>
+    <article>
+        <h2>{{ total_articles }}</h2>
+        <p>Articles Read</p>
+    </article>
+    <article>
+        <h2>{{ total_quizzes }}</h2>
+        <p>Quizzes Taken</p>
+    </article>
+    <article>
+        <h2>{{ avg_score }}/5</h2>
+        <p>Avg Quiz Score</p>
+    </article>
+</div>
+
+<hr>
+
+<h2>Activity Heatmap</h2>
+<p><small>Last 365 days. Darker = more activity.</small></p>
+
+<div class="heatmap-container">
+    <div class="heatmap-grid">
+        <!-- Day-of-week headers -->
+        <div class="heatmap-header">Mon</div>
+        <div class="heatmap-header">Tue</div>
+        <div class="heatmap-header">Wed</div>
+        <div class="heatmap-header">Thu</div>
+        <div class="heatmap-header">Fri</div>
+        <div class="heatmap-header">Sat</div>
+        <div class="heatmap-header">Sun</div>
+
+        <!-- Fill in the grid -->
+        {% for day_offset in "365"|center:"365" %}
+            {% comment %}
+            Build a weeks × 7 grid iterating over the past year.
+            Since Django templates are limited, we use a Python-computed
+            structure in the view and pass it.
+            {% endcomment %}
+        {% endfor %}
+    </div>
+</div>
+
+<h3>How Heatmaps Work</h3>
+<p>Each cell represents one day. The intensity shows how many articles you read, quizzes you completed, and words you mastered that day.</p>
+
+<p>
+    <a href="{% url 'learning:history' %}" role="button">View Reading History</a>
+    <a href="{% url 'learning:index' %}" role="button" class="secondary">Back to Home</a>
+</p>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Review Words – BDC Vocabulary{% endblock %}
+
+{% block content %}
+<h1>Review Words</h1>
+<p>From: <em>{{ article.title }}</em></p>
+
+<form method="post" action="{% url 'learning:save_word_decisions' article.id %}">
+    {% csrf_token %}
+
+    <!-- Batch actions -->
+    <div style="margin-bottom: 1em;">
+        <button type="submit" name="action" value="master_all" class="contrast">Master All</button>
+    </div>
+
+    <div class="word-review-grid">
+        {% for item in word_info %}
+        <article class="word-card">
+            <h3>
+                <label>
+                    <input type="checkbox" name="master_word_ids" value="{{ item.word.id }}"
+                           {% if item.is_already_mastered %}disabled{% endif %}>
+                    {{ item.word.word }}
+                </label>
+            </h3>
+            <p><small>{{ item.word.part_of_speech }}</small></p>
+            <p>{{ item.word.definition }}</p>
+            {% if item.is_already_mastered %}
+                <mark>Already Mastered</mark>
+            {% else %}
+                <span class="status-badge status-{{ item.status }}">{{ item.status }}</span>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+
+    <div style="margin-top: 2em;">
+        <button type="submit" name="action" value="save_selected">Mark Selected as Mastered</button>
+        <a href="{% url 'learning:index' %}" role="button" class="secondary">Back to Home</a>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Learn – BDC Vocabulary{% endblock %}
+
+{% block content %}
+<h1>Generate Article</h1>
+
+<div class="grid">
+    <div>
+        <form method="post" action="{% url 'learning:generate' %}">
+            {% csrf_token %}
+
+            <label>
+                Word Bank
+                <select name="word_bank_id" required>
+                    <option value="">-- Select a word bank --</option>
+                    {% for bank in word_banks %}
+                    <option value="{{ bank.id }}" {% if bank.id == selected_bank_id %}selected{% endif %}>
+                        {{ bank.name }} ({{ bank.words.count }} words)
+                    </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <fieldset>
+                <legend>Interests (select one or more)</legend>
+                {% for interest in interests %}
+                <label style="display: inline-block; margin-right: 1em;">
+                    <input type="checkbox" name="interest_ids" value="{{ interest.id }}">
+                    {{ interest.name }}
+                </label>
+                {% endfor %}
+            </fieldset>
+
+            <label>
+                Sentence Complexity: <strong id="complexity-value">{{ profile.sentence_complexity }}</strong>
+                <input type="range" name="sentence_complexity"
+                       min="{{ complexity_min }}" max="{{ complexity_max }}"
+                       value="{{ profile.sentence_complexity }}"
+                       oninput="document.getElementById('complexity-value').textContent = this.value">
+                <small>1 = very simple, 9 = native-level</small>
+            </label>
+
+            <label>
+                Article Length: <strong id="length-value">{{ article_length }}</strong> words
+                <input type="range" name="article_length"
+                       min="200" max="800" step="50"
+                       value="{{ article_length }}"
+                       oninput="document.getElementById('length-value').textContent = this.value">
+                <small>200 = short, 500 = medium, 800 = long</small>
+            </label>
+
+            <button type="submit" {% if not can_generate %}disabled{% endif %}>
+                Generate Article
+            </button>
+        </form>
+
+        <p style="margin-top: 1em;">
+            <small>Daily usage: {{ remaining_generations }} / {{ daily_limit }} remaining today</small>
+            {% if not can_generate %}<mark>Limit reached. Try again tomorrow.</mark>{% endif %}
+        </p>
+    </div>
+
+    <div>
+        <h3>How It Works</h3>
+        <ol>
+            <li>Select a <strong>word bank</strong> to learn from</li>
+            <li>Pick your <strong>interests</strong> for the article topic</li>
+            <li>Set the <strong>complexity</strong> to match your level</li>
+            <li>AI generates an article with your target words</li>
+            <li>Read, take a quiz, and mark words as mastered</li>
+        </ol>
+    </div>
+</div>
+
+{% endblock %}

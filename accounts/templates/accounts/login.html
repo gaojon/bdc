@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Login – BDC Vocabulary{% endblock %}
+
+{% block content %}
+<div class="login-page">
+    <div class="login-card">
+        <div class="owl-illustration">
+            <svg viewBox="0 0 320 220" xmlns="http://www.w3.org/2000/svg" class="owl-svg">
+                <!-- === BIG OWL (left, facing right) === -->
+                <!-- Body -->
+                <ellipse cx="120" cy="145" rx="60" ry="50" fill="#8B6914"/>
+                <!-- Belly -->
+                <ellipse cx="120" cy="155" rx="38" ry="30" fill="#D4A853"/>
+                <ellipse cx="120" cy="150" rx="26" ry="22" fill="#E8D5A3" opacity="0.6"/>
+                <!-- Left wing -->
+                <ellipse cx="65" cy="140" rx="20" ry="38" fill="#6B4F12" transform="rotate(12,65,140)"/>
+                <!-- Right wing -->
+                <ellipse cx="175" cy="140" rx="20" ry="38" fill="#6B4F12" transform="rotate(-12,175,140)"/>
+                <!-- Left eye -->
+                <circle cx="98" cy="95" r="26" fill="white"/>
+                <circle cx="98" cy="95" r="16" fill="#4A2800"/>
+                <circle cx="96" cy="91" r="2.5" fill="white"/>
+                <!-- Right eye — looking at baby owl -->
+                <circle cx="144" cy="95" r="26" fill="white"/>
+                <circle cx="150" cy="95" r="16" fill="#4A2800"/>
+                <circle cx="150" cy="95" r="7" fill="white"/>
+                <circle cx="147" cy="91" r="3" fill="white"/>
+                <circle cx="153" cy="89" r="2.5" fill="white"/>
+                <circle cx="148" cy="91" r="1.5" fill="white"/>
+                <!-- Beak -->
+                <polygon points="120,107 112,118 128,118" fill="#FF8C00"/>
+                <!-- Ear tufts -->
+                <polygon points="65,55 85,78 62,78" fill="#6B4F12"/>
+                <polygon points="175,55 155,78 178,78" fill="#6B4F12"/>
+                <!-- Feet -->
+                <ellipse cx="100" cy="192" rx="12" ry="6" fill="#FF8C00"/>
+                <ellipse cx="140" cy="192" rx="12" ry="6" fill="#FF8C00"/>
+                <!-- Blush -->
+                <ellipse cx="80" cy="112" rx="9" ry="5" fill="#FFB6C1" opacity="0.4"/>
+
+                <!-- === BABY OWL (right, facing left, looking up) === -->
+                <!-- Body -->
+                <ellipse cx="220" cy="175" rx="30" ry="25" fill="#C49A28"/>
+                <!-- Belly -->
+                <ellipse cx="220" cy="180" rx="20" ry="16" fill="#E8CD7A"/>
+                <ellipse cx="220" cy="177" rx="14" ry="11" fill="#F5E6B8" opacity="0.6"/>
+                <!-- Wings -->
+                <ellipse cx="194" cy="172" rx="10" ry="20" fill="#A07818" transform="rotate(10,194,172)"/>
+                <ellipse cx="246" cy="172" rx="10" ry="20" fill="#A07818" transform="rotate(-10,246,172)"/>
+                <!-- Left eye — big baby eyes looking at mama -->
+                <circle cx="210" cy="152" r="18" fill="white"/>
+                <circle cx="208" cy="152" r="11" fill="#4A2800"/>
+                <circle cx="208" cy="152" r="5" fill="white"/>
+                <circle cx="206" cy="149" r="2" fill="white"/>
+                <!-- Right eye -->
+                <circle cx="232" cy="152" r="18" fill="white"/>
+                <circle cx="234" cy="152" r="11" fill="#4A2800"/>
+                <circle cx="234" cy="152" r="5" fill="white"/>
+                <circle cx="232" cy="149" r="2" fill="white"/>
+                <!-- Tiny beak -->
+                <polygon points="220,164 216,170 224,170" fill="#FF8C00"/>
+                <!-- Tiny ear tufts -->
+                <polygon points="195,135 205,150 190,150" fill="#A07818"/>
+                <polygon points="245,135 235,150 250,150" fill="#A07818"/>
+                <!-- Tiny feet -->
+                <ellipse cx="210" cy="198" rx="7" ry="4" fill="#FF8C00"/>
+                <ellipse cx="230" cy="198" rx="7" ry="4" fill="#FF8C00"/>
+                <!-- Blush -->
+                <ellipse cx="202" cy="165" rx="5" ry="3" fill="#FFB6C1" opacity="0.5"/>
+
+                <!-- Heart between them -->
+                <g transform="translate(175,160) scale(0.5)" opacity="0.3">
+                    <path d="M0,15 C0,5 15,-5 15,10 C15,-5 30,5 30,15 C30,30 15,40 15,40 C15,40 0,30 0,15Z" fill="#FF6B8A"/>
+                </g>
+            </svg>
+        </div>
+        <h1>BDC Vocabulary</h1>
+        <p>Learn English with AI</p>
+        <form method="post">
+            {% csrf_token %}
+            <label>
+                Username
+                <input type="text" name="username" required autofocus>
+            </label>
+            <label>
+                Password
+                <input type="password" name="password" required>
+            </label>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+</div>
+
+<style>
+.login-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 70vh;
+    padding: 1rem;
+}
+.login-card {
+    text-align: center;
+    max-width: 400px;
+    width: 100%;
+}
+.owl-illustration {
+    margin-bottom: 1rem;
+}
+.owl-svg {
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+    animation: owl-bob 3s ease-in-out infinite;
+}
+@keyframes owl-bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+@media (max-width: 430px) {
+    .owl-svg {
+        max-width: 240px;
+    }
+}
+</style>
+{% endblock %}

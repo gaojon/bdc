@@ -1,0 +1,11 @@
+db.sqlite3
+__pycache__/
+*.pyc
+staticfiles/
+.env
+config/app_config.json
+.claude/
+data/extract_doc.py
+data/*.doc
+data/zone.identifier
+*.Zone.Identifier

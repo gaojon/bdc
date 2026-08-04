@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Word Banks – BDC Vocabulary{% endblock %}
+
+{% block content %}
+<h1>Word Banks</h1>
+
+<!-- Create new bank -->
+<form method="post" action="{% url 'wordbank:create_bank' %}" style="margin-bottom: 2em;">
+    {% csrf_token %}
+    <div class="grid">
+        <input type="text" name="name" placeholder="New word bank name..." required>
+        <button type="submit">Create Bank</button>
+    </div>
+</form>
+
+{% if word_banks %}
+<div class="word-review-grid">
+    {% for bank in word_banks %}
+    <article>
+        <h3>{{ bank.name }}</h3>
+        <p><strong>{{ bank.words.count }}</strong> words</p>
+        <p><small>Created: {{ bank.created_at|date:"Y-m-d" }}</small></p>
+        <div class="grid">
+            <a href="{% url 'wordbank:browse' bank.id %}" role="button">Browse & Edit</a>
+            <a href="{% url 'wordbank:export_csv' bank.id %}" role="button" class="secondary">Export CSV</a>
+        </div>
+        <form method="post" action="{% url 'wordbank:delete_bank' bank.id %}"
+              onsubmit="return confirm('Delete {{ bank.name|escapejs }} and ALL its words?');"
+              style="margin-top: 0.5em;">
+            {% csrf_token %}
+            <button type="submit" class="outline contrast" style="width:100%;">Delete Bank</button>
+        </form>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<p>No word banks yet. Create one above, or import from the admin panel.</p>
+{% endif %}
+{% endblock %}

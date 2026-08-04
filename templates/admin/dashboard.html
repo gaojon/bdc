@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}System Dashboard – BDC Vocabulary{% endblock %}
+
+{% block content %}
+<h1>System Dashboard</h1>
+
+<!-- Top stats row -->
+<div class="grid">
+    <article style="text-align:center;">
+        <h2>{{ db_size_mb }} MB</h2>
+        <p>Database Size</p>
+    </article>
+    <article style="text-align:center;">
+        <h2>{{ total_users }}</h2>
+        <p>Users <small>({{ active_this_week }} active this week)</small></p>
+    </article>
+    <article style="text-align:center;">
+        <h2>{{ total_words }}</h2>
+        <p>Words <small>({{ total_word_banks }} banks)</small></p>
+    </article>
+    <article style="text-align:center;">
+        <h2>{{ total_articles }}</h2>
+        <p>Articles <small>({{ recent_usage }} this week)</small></p>
+    </article>
+    <article style="text-align:center;">
+        <h2>{{ total_mastered }}</h2>
+        <p>Mastered</p>
+    </article>
+</div>
+
+<div style="margin:1.5em 0;">
+    <a href="{% url 'dashboard:backup' %}" role="button" style="background:#059669; border-color:#059669; color:#fff;">💾 Download Backup</a>
+    <a href="{% url 'dashboard:user_management' %}" role="button">👥 User Management</a>
+    <small style="margin-left:1em;">DB: {{ db_path }}</small>
+</div>
+
+<!-- Word Banks -->
+<h2>Word Banks</h2>
+<table>
+    <thead><tr><th>Name</th><th>Words</th><th>Created</th></tr></thead>
+    <tbody>
+    {% for bank in word_banks %}
+    <tr>
+        <td>{{ bank.name }}</td>
+        <td>{{ bank.word_count }}</td>
+        <td>{{ bank.created_at|date:"Y-m-d" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<!-- User Activity -->
+<h2>User Activity</h2>
+<div style="overflow-x:auto;">
+<table>
+    <thead>
+        <tr>
+            <th>User</th><th>Role</th><th>Articles</th><th>Generations</th>
+            <th>Mastered</th><th>Learning</th><th>Quizzes</th><th>Avg</th>
+            <th>Last Login</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for u in user_stats %}
+    <tr>
+        <td><strong>{{ u.username }}</strong></td>
+        <td>{% if u.is_superuser %}Admin{% else %}Student{% endif %}</td>
+        <td>{{ u.articles }}</td>
+        <td>{{ u.generations }}</td>
+        <td>{{ u.mastered }}</td>
+        <td>{{ u.learning }}</td>
+        <td>{{ u.quizzes }}</td>
+        <td>{{ u.avg_score }}</td>
+        <td>{{ u.last_login|date:"Y-m-d H:i"|default:"—" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<!-- Recent Logins -->
+<h2>Recent Logins</h2>
+<table>
+    <thead><tr><th>User</th><th>Time</th><th>IP</th></tr></thead>
+    <tbody>
+    {% for login in recent_logins %}
+    <tr>
+        <td>{{ login.user.username }}</td>
+        <td>{{ login.logged_in_at|date:"Y-m-d H:i:s" }}</td>
+        <td>{{ login.ip_address|default:"—" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}BDC Vocabulary{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="container-fluid">
+        <ul>
+                        {% if user.is_authenticated %}
+            <li><a href="{% url 'wordbank:manage' %}">Word Banks</a></li>
+            <li><a href="{% url 'learning:history' %}">History</a></li>
+            <li><a href="{% url 'learning:stats' %}">Stats</a></li>
+            {% if user.is_superuser %}
+            <li><a href="{% url 'dashboard:dashboard' %}">Manage</a></li>
+            {% endif %}
+            {% endif %}
+        </ul>
+        <ul>
+            {% if user.is_authenticated %}
+            <li>{{ user.username }}</li>
+            <li><a href="{% url 'accounts:profile' %}">Profile</a></li>
+            <li><a href="{% url 'accounts:logout' %}">Logout</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    <main class="container">
+        {% if messages %}
+        {% for message in messages %}
+        <article class="message-{{ message.tags }}">{{ message }}</article>
+        {% endfor %}
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+    <footer style="text-align:center;padding:1.5rem;color:var(--pico-muted-color);font-size:0.8rem;border-top:1px solid var(--pico-muted-border-color);">
+        BDC Vocabulary v{{ VERSION }} — Build {{ BUILD_TIME }}
+    </footer>
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
