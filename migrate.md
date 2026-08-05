@@ -65,6 +65,20 @@ cd /home/opc
 git clone https://github.com/gaojon/bdc.git
 ```
 
+### 2.3.1 ⚠️ 上传配置文件（必须）
+
+`config/app_config.json` 包含 API Key，已加入 `.gitignore`，不会被 git 克隆。
+需要从本地手动上传：
+
+```bash
+# 在本地机器执行（替换为实际路径）
+scp -i /home/jon/cli/cli_bdc.key \
+    /home/jon/bdc/config/app_config.json \
+    opc@129.146.153.133:/home/opc/bdc/config/app_config.json
+```
+
+> 如果跳过此步骤，应用将报 `FileNotFoundError: app_config.json` 错误。
+
 ### 2.4 安装 Python 依赖
 
 ```bash
