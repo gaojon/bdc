@@ -2,7 +2,6 @@
 
 import json
 import logging
-import time
 from datetime import date
 from pathlib import Path
 
@@ -34,15 +33,6 @@ def _get_version_info() -> dict:
     except (FileNotFoundError, json.JSONDecodeError):
         return {"version": "dev", "build_time": ""}
 
-
-def _update_build_time() -> dict:
-    """Update version.json build_time to now and return it."""
-    path = Path(settings.BASE_DIR) / "version.json"
-    info = _get_version_info()
-    info["build_time"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    with open(path, "w") as f:
-        json.dump(info, f)
-    return info
 
 logger = logging.getLogger(__name__)
 
@@ -142,8 +132,6 @@ def generate_article(request):
     # Call DeepSeek — article generation
     article_data = ai.generate_article(word_strings, interest_names, complexity, article_length)
     if article_data is None:
-        messages.error(request, "AI service unavailable.")
-        return redirect("learning:index")
         messages.error(request, "AI service is currently unavailable. Please try again later.")
         return redirect("learning:index")
 
@@ -375,6 +363,7 @@ def regenerate(request, article_id):
     word_bank = old_article.word_bank
     interests = list(old_article.interests.all())
     complexity = old_article.sentence_complexity
+    profile = request.user.profile
     article_length = profile.article_length
 
     word_statuses = services.select_words_for_article(request.user, word_bank)

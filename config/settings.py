@@ -2,17 +2,38 @@
 Django settings for the English Word Learning System.
 
 See RD.md and AD.md for architecture decisions.
+
+Environment variables:
+    DJANGO_DEBUG          "true"/"1" → DEBUG=True (default: True)
+    DJANGO_SECRET_KEY     override the default SECRET_KEY
+    DJANGO_ALLOWED_HOSTS  comma-separated list (default: "*")
 """
 
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-CHANGE-ME-in-production-please"
+# ---------------------------------------------------------------------------
+# Security
+# ---------------------------------------------------------------------------
 
-DEBUG = True
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-CHANGE-ME-in-production-please",
+)
 
-ALLOWED_HOSTS = ["*"]
+DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() in ("1", "true", "yes")
+
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
+    if h.strip()
+]
+
+# ---------------------------------------------------------------------------
+# Applications
+# ---------------------------------------------------------------------------
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -58,31 +79,59 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# ---------------------------------------------------------------------------
+# Database – SQLite with write-timeout for multi-worker deployments
+# ---------------------------------------------------------------------------
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
+        "OPTIONS": {
+            "timeout": 20,  # seconds to wait for a write lock (D-10)
+        },
     }
 }
+
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
 ]
+
+LOGIN_URL = "/account/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/account/login/"
+
+# ---------------------------------------------------------------------------
+# Internationalisation
+# ---------------------------------------------------------------------------
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Asia/Shanghai"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+# ---------------------------------------------------------------------------
+# Static files
+# ---------------------------------------------------------------------------
+
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-LOGIN_URL = "/account/login/"
-LOGIN_REDIRECT_URL = "/"
-LOGOUT_REDIRECT_URL = "/account/login/"
+# ---------------------------------------------------------------------------
+# Session / CSRF security
+# ---------------------------------------------------------------------------
 
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = False  # HTTP on intranet
+SESSION_COOKIE_SECURE = False  # HTTP on intranet; set True if behind TLS
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SECURE = False
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

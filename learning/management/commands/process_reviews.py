@@ -1,7 +1,7 @@
 """Management command to process due spaced-repetition reviews.
 
 Designed to run daily via cron:
-    0 3 * * * cd /opt/wordlearner && venv/bin/python manage.py process_reviews
+    0 3 * * * cd /home/opc/bdc && python3.12 manage.py process_reviews
 """
 
 from django.core.management.base import BaseCommand

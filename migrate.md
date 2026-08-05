@@ -92,6 +92,9 @@ python3.12 -m pip install -r requirements.txt
 # 数据库迁移
 python3.12 manage.py migrate
 
+# 收集静态文件（CSS / JS）
+python3.12 manage.py collectstatic --noinput
+
 # 创建管理员账户
 python3.12 manage.py shell -c "
 from django.contrib.auth.models import User

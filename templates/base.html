@@ -1,16 +1,16 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}BDC Vocabulary{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
     <nav class="container-fluid">
         <ul>
-                        {% if user.is_authenticated %}
+            {% if user.is_authenticated %}
             <li><a href="{% url 'wordbank:manage' %}">Word Banks</a></li>
             <li><a href="{% url 'learning:history' %}">History</a></li>
             <li><a href="{% url 'learning:stats' %}">Stats</a></li>
@@ -38,6 +38,6 @@
     <footer style="text-align:center;padding:1.5rem;color:var(--pico-muted-color);font-size:0.8rem;border-top:1px solid var(--pico-muted-border-color);">
         BDC Vocabulary v{{ VERSION }} — Build {{ BUILD_TIME }}
     </footer>
-    <script src="/static/js/main.js"></script>
+    <script src="{% static 'js/main.js' %}"></script>
 </body>
 </html>

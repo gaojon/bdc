@@ -14,11 +14,21 @@ _client: OpenAI | None = None
 
 
 def get_client() -> OpenAI:
-    """Get or create the DeepSeek API client (lazy singleton)."""
+    """Get or create the DeepSeek API client (lazy singleton).
+
+    Raises ValueError if the API key is not configured, so callers can
+    catch it and give the user a clear message.
+    """
     global _client
     if _client is None:
+        api_key = get_config("deepseek.api_key")
+        if not api_key or api_key == "sk-your-api-key-here":
+            raise ValueError(
+                "DeepSeek API key is not configured. "
+                "Set it in config/app_config.json or via the admin dashboard."
+            )
         _client = OpenAI(
-            api_key=get_config("deepseek.api_key"),
+            api_key=api_key,
             base_url=get_config("deepseek.base_url"),
             timeout=get_config("deepseek.timeout_seconds", 120),
         )

@@ -4,7 +4,6 @@ import os
 import shutil
 import tempfile
 from datetime import date, timedelta
-from pathlib import Path
 
 from django.conf import settings
 from django.contrib import admin, messages
@@ -19,7 +18,7 @@ from django.utils import timezone
 
 from accounts.models import LoginRecord, Profile
 from learning.models import Article, DailyUsage, LearningActivity, Quiz, UserWordStatus
-from utils.config import get_config
+from utils.config import CONFIG_PATH, get_config
 from utils.constants import WordStatus
 from wordbank.models import Word, WordBank
 
@@ -251,12 +250,14 @@ def api_config_view(request):
 
     import json
 
-    config_path = Path(__file__).resolve().parent.parent / "config" / "app_config.json"
-
     if request.method == "POST":
-        # Read existing config
-        with open(config_path, encoding="utf-8") as f:
-            cfg = json.load(f)
+        # Read existing config, or start from defaults if missing
+        try:
+            with open(CONFIG_PATH, encoding="utf-8") as f:
+                cfg = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            from utils.config import DEFAULT_CONFIG
+            cfg = DEFAULT_CONFIG.copy()
 
         # Update deepseek section
         cfg.setdefault("deepseek", {})
@@ -269,7 +270,7 @@ def api_config_view(request):
             cfg["deepseek"]["timeout_seconds"] = 120
 
         # Write back
-        with open(config_path, "w", encoding="utf-8") as f:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2, ensure_ascii=False)
             f.write("\n")
 

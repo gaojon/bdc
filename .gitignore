@@ -2,6 +2,7 @@ db.sqlite3
 __pycache__/
 *.pyc
 staticfiles/
+version.json
 .env
 config/app_config.json
 .claude/

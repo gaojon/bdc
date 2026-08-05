@@ -12,7 +12,7 @@ def version_info(request):
     try:
         with open(path) as f:
             info = json.load(f)
-        return {"VERSION": info.get("version", "dev"),
+        return {"VERSION": info.get("version", "1.1.0"),
                 "BUILD_TIME": info.get("build_time", "")}
     except (FileNotFoundError, json.JSONDecodeError):
         return {"VERSION": "dev", "BUILD_TIME": ""}
