@@ -1,9 +1,10 @@
 # 英语单词学习系统 — 架构设计文档 (Architecture Design)
 
-> **版本**: v1.1
+> **版本**: v1.2
 > **创建日期**: 2026-08-04
+> **最后更新**: 2026-08-05
 > **状态**: 已实现，与代码同步
-> **关联文档**: [RD.md](RD.md) v1.3
+> **关联文档**: [RD.md](RD.md) v1.4
 
 ---
 
@@ -636,8 +637,12 @@ urlpatterns = [
 | `/account/login/` | `accounts.views.login_view` | 登录 |
 | `/account/logout/` | `accounts.views.logout_view` | 登出 |
 | `/account/profile/` | `accounts.views.profile` | 个人信息编辑 |
+| `/admin/dashboard/` | `accounts.admin_dashboard.dashboard_view` | Admin 系统统计面板 |
+| `/admin/api-config/` | `accounts.admin_dashboard.api_config_view` | Admin DeepSeek API 配置 |
+| `/admin/users/` | `accounts.admin_dashboard.user_management_view` | Admin 用户管理 |
+| `/admin/backup/` | `accounts.admin_dashboard.backup_view` | Admin 数据库备份下载 |
 
-> 所有视图均使用 Django `@login_required` 装饰器保护。
+> 所有视图均使用 Django `@login_required` 装饰器保护。Admin 视图额外检查 `is_superuser`。
 
 ---
 
@@ -731,7 +736,7 @@ def get_config(key: str, default=None):
     return cfg or default
 ```
 
-> Admin 通过 Django Admin 后台编辑 `app_config.json` 文件（AD-04），修改后重启服务生效（D-42）。
+> Admin 可通过 `/admin/api-config/` 页面在线编辑 DeepSeek API 配置（api_key、base_url、model、timeout_seconds）。保存后自动清除配置缓存，推荐重启服务使所有更改完全生效（D-42）。
 
 ---
 
@@ -912,9 +917,10 @@ gunicorn>=22.0
 | `UserWordStatus` | 查看用户学习状态 |
 | `Article` | 查看文章 |
 | `Interest` | 兴趣类别管理 |
-| 自定义 Admin View | CSV 导入（AD-02）、配置编辑（AD-04）、用户统计（AD-05） |
+| 自定义 Admin View | Dashboard（系统统计）、API Config（DeepSeek 配置编辑）、User Management（用户管理）、Backup（数据库备份） |
+| `/admin/api-config/` | DeepSeek API 在线配置：api_key、base_url、model、timeout_seconds |
 
-> Django 内置 Admin 覆盖了 AD-01、AD-03 的大部分需求。AD-02（CSV 导入）和 AD-04（配置编辑）通过 Admin 自定义 View 实现。
+> Django 内置 Admin 覆盖了 AD-01、AD-03 的大部分需求。AD-02（CSV 导入）、AD-04（配置编辑）和 AD-05（用户统计）通过 Admin 自定义 View 实现。
 
 ---
 
@@ -935,3 +941,13 @@ gunicorn>=22.0
 | **CSV 导入放宽** | 定义列可为空（适配从 .doc 提取的无释义单词） |
 | **is_phrase 清理** | 仅空格/连字符复合词标记为 phrase，单单词自动清除 |
 | **上海高考词库** | 从 sh_gaokao.doc 提取 2,869 个单词导入，含中文释义 |
+
+---
+
+## 附录 D: v1.2 更新记录
+
+| 变更 | 说明 |
+|------|------|
+| **DeepSeek API 在线配置** | 新增 `/admin/api-config/` 页面，Admin 可在线编辑 api_key、base_url、model、timeout_seconds |
+| **配置缓存刷新** | 保存配置后自动清除 `@lru_cache` 缓存，无需重启即可生效 |
+| **Admin 导航更新** | Dashboard 和 Admin 索引页新增"DeepSeek API Config"快捷入口 |

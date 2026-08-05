@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}DeepSeek API Configuration – BDC Vocabulary{% endblock %}
+
+{% block content %}
+<h1>DeepSeek API Configuration</h1>
+
+<p class="muted">These settings control the connection to the DeepSeek API for article and quiz generation. Changes take effect immediately but a server restart is recommended.</p>
+
+<form method="post">
+    {% csrf_token %}
+
+    <label>API Key
+        <input type="text" name="api_key" value="{{ api_key }}"
+               placeholder="sk-..." style="font-family:monospace;">
+        <small>The API key for authenticating with DeepSeek.</small>
+    </label>
+
+    <label>Base URL
+        <input type="url" name="base_url" value="{{ base_url }}"
+               placeholder="https://api.deepseek.com">
+        <small>The DeepSeek API endpoint base URL.</small>
+    </label>
+
+    <label>Model
+        <input type="text" name="model" value="{{ model }}"
+               placeholder="deepseek-chat">
+        <small>The model name to use. Common options: <code>deepseek-chat</code>, <code>deepseek-reasoner</code>.</small>
+    </label>
+
+    <label>Timeout (seconds)
+        <input type="number" name="timeout_seconds" value="{{ timeout_seconds }}"
+               min="10" max="600">
+        <small>Request timeout in seconds (10–600).</small>
+    </label>
+
+    <div style="margin-top:1.5em;">
+        <button type="submit" style="background:#2563eb;border-color:#2563eb;color:#fff;">
+            💾 Save Configuration
+        </button>
+        <a href="{% url 'dashboard:dashboard' %}" role="button" class="secondary">Cancel</a>
+    </div>
+</form>
+
+<hr>
+
+<h2>Current Connection Test</h2>
+<p class="muted">You can test the API connection by generating a simple article from the main app. If generation works, the configuration is valid.</p>
+
+<h2>Configuration File</h2>
+<p class="muted">These values are stored in <code>config/app_config.json</code> under the <code>deepseek</code> key:</p>
+<pre style="background:#f3f4f6;padding:1em;border-radius:4px;overflow-x:auto;">{
+  "deepseek": {
+    "api_key": "{{ api_key|default:"(not set)" }}",
+    "base_url": "{{ base_url }}",
+    "model": "{{ model }}",
+    "timeout_seconds": {{ timeout_seconds }}
+  }
+}</pre>
+{% endblock %}

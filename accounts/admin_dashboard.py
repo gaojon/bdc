@@ -242,6 +242,55 @@ def user_edit_view(request, user_id):
     return redirect("dashboard:user_management")
 
 
+@login_required
+def api_config_view(request):
+    """DeepSeek API configuration page (superuser only)."""
+    if not request.user.is_superuser:
+        messages.error(request, "Access denied.")
+        return redirect("learning:index")
+
+    import json
+
+    config_path = Path(__file__).resolve().parent.parent / "config" / "app_config.json"
+
+    if request.method == "POST":
+        # Read existing config
+        with open(config_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+
+        # Update deepseek section
+        cfg.setdefault("deepseek", {})
+        cfg["deepseek"]["api_key"] = request.POST.get("api_key", "").strip()
+        cfg["deepseek"]["base_url"] = request.POST.get("base_url", "").strip()
+        cfg["deepseek"]["model"] = request.POST.get("model", "").strip()
+        try:
+            cfg["deepseek"]["timeout_seconds"] = int(request.POST.get("timeout_seconds", "120"))
+        except ValueError:
+            cfg["deepseek"]["timeout_seconds"] = 120
+
+        # Write back
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+
+        # Purge the cached config so next get_config() reads fresh values
+        from utils.config import load_config
+        load_config.cache_clear()
+
+        messages.success(request, "DeepSeek API configuration updated. Restart recommended for all changes to take effect.")
+
+    # Load current config for display
+    ds = get_config("deepseek", {})
+    context = {
+        "title": "DeepSeek API Configuration",
+        "api_key": ds.get("api_key", ""),
+        "base_url": ds.get("base_url", "https://api.deepseek.com"),
+        "model": ds.get("model", "deepseek-chat"),
+        "timeout_seconds": ds.get("timeout_seconds", 120),
+    }
+    return render(request, "admin/api_config.html", context)
+
+
 def get_urls():
     """Return custom admin URLs."""
     return [
@@ -249,4 +298,5 @@ def get_urls():
         path("backup/", backup_view, name="backup"),
         path("users/", user_management_view, name="user_management"),
         path("users/<int:user_id>/edit/", user_edit_view, name="user_edit"),
+        path("api-config/", api_config_view, name="api_config"),
     ]
