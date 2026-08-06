@@ -61,6 +61,9 @@ class Article(models.Model):
 
     class Meta:
         ordering = ["-generated_at"]
+        indexes = [
+            models.Index(fields=["user", "-generated_at"], name="article_user_gen_idx"),
+        ]
 
     def __str__(self):
         return self.title

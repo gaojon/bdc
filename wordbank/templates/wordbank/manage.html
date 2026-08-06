@@ -23,14 +23,18 @@
         <p><small>Created: {{ bank.created_at|date:"Y-m-d" }}</small></p>
         <div class="grid">
             <a href="{% url 'wordbank:browse' bank.id %}" role="button">Browse & Edit</a>
+            {% if user.is_superuser %}
             <a href="{% url 'wordbank:export_csv' bank.id %}" role="button" class="secondary">Export CSV</a>
+            {% endif %}
         </div>
+        {% if user.is_superuser %}
         <form method="post" action="{% url 'wordbank:delete_bank' bank.id %}"
               onsubmit="return confirm('Delete {{ bank.name|escapejs }} and ALL its words?');"
               style="margin-top: 0.5em;">
             {% csrf_token %}
             <button type="submit" class="outline contrast" style="width:100%;">Delete Bank</button>
         </form>
+        {% endif %}
     </article>
     {% endfor %}
 </div>

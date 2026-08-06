@@ -100,7 +100,7 @@ def dashboard_view(request):
     for bank in WordBank.objects.all():
         word_banks.append({
             "name": bank.name,
-            "word_count": bank.words.count(),
+            "word_count": bank.entries.count(),
             "created_at": bank.created_at,
         })
 
@@ -286,7 +286,7 @@ def api_config_view(request):
         "title": "DeepSeek API Configuration",
         "api_key": ds.get("api_key", ""),
         "base_url": ds.get("base_url", "https://api.deepseek.com"),
-        "model": ds.get("model", "deepseek-chat"),
+        "model": ds.get("model", "deepseek-v4-flash"),
         "timeout_seconds": ds.get("timeout_seconds", 120),
     }
     return render(request, "admin/api_config.html", context)

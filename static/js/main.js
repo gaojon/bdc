@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", function () {
     setupComplexitySlider();
     setupMasterAllButton();
     setupQuizSubmission();
+    setupDetailsPersistence();
 });
 
 // ---- Complexity slider live value display ----
@@ -48,5 +49,24 @@ function setupQuizSubmission() {
             submitBtn.disabled = true;
             submitBtn.textContent = "Submitting...";
         }
+    });
+}
+
+// ---- Persist <details> open/close state via localStorage ----
+function setupDetailsPersistence() {
+    const detailsEls = document.querySelectorAll("details[data-persist]");
+    detailsEls.forEach(function (details) {
+        const key = details.getAttribute("data-persist");
+
+        // Restore saved state
+        const saved = localStorage.getItem(key);
+        if (saved !== null) {
+            details.open = saved === "true";
+        }
+
+        // Save state on toggle
+        details.addEventListener("toggle", function () {
+            localStorage.setItem(key, details.open ? "true" : "false");
+        });
     });
 }

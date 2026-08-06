@@ -142,8 +142,8 @@ def generate_article(request):
     profile.save(update_fields=["selected_word_bank_id"])
 
     # Select words for the AI
-    word_statuses = services.select_words_for_article(request.user, word_bank)
-    if not word_statuses:
+    selected_words = services.select_words_for_article(request.user, word_bank)
+    if not selected_words:
         messages.error(
             request,
             "No words available in this word bank. "
@@ -151,7 +151,7 @@ def generate_article(request):
         )
         return redirect("learning:index")
 
-    word_strings = [ws.word.word for ws in word_statuses]
+    word_strings = [w.word for w in selected_words]
     interest_names = [i.name for i in interests]
 
     # Update user's preferences
@@ -166,9 +166,11 @@ def generate_article(request):
         messages.error(request, "AI service is currently unavailable. Please try again later.")
         return redirect("learning:index")
 
-    # Resolve hit_words to Word objects in DB
+    # Resolve hit_words to Word objects in DB (filter by bank via WordBankEntry)
     hit_word_strings = article_data.get("hit_words", [])
-    hit_words = Word.objects.filter(word_bank=word_bank, word__in=hit_word_strings)
+    hit_words = Word.objects.filter(
+        bank_entries__word_bank=word_bank, word__in=hit_word_strings
+    )
     hit_word_map = {w.word.lower(): w for w in hit_words}
 
     # Get mastered words for light highlighting
@@ -188,11 +190,11 @@ def generate_article(request):
         title=article_data["title"],
         content=article_data["content"],
         content_html=content_html,
-        target_word_ids=[ws.word.id for ws in word_statuses],
+        target_word_ids=[w.id for w in selected_words],
         mastered_word_ids=[
             w.id
             for w in Word.objects.filter(
-                word_bank=word_bank, word__in=mastered_word_strings
+                bank_entries__word_bank=word_bank, word__in=mastered_word_strings
             )
         ],
         hit_word_ids=[w.id for w in hit_words],
@@ -207,9 +209,9 @@ def generate_article(request):
     # Increment occurrence for hit words
     services.increment_occurrence([w.id for w in hit_words], request.user)
 
-    # Generate quiz (second API call)
-    quiz_data = ai.generate_quiz(article_data["title"], article_data["content"])
-    if quiz_data is not None:
+    # Save quiz from combined response
+    quiz_data = article_data.get("quiz", {})
+    if quiz_data and quiz_data.get("questions"):
         Quiz.objects.create(article=article, questions=quiz_data["questions"])
 
     services.record_learning_activity(request.user, articles_read=1)
@@ -400,12 +402,12 @@ def regenerate(request, article_id):
     profile = request.user.profile
     article_length = profile.article_length
 
-    word_statuses = services.select_words_for_article(request.user, word_bank)
-    if not word_statuses:
+    selected_words = services.select_words_for_article(request.user, word_bank)
+    if not selected_words:
         messages.error(request, "No words available.")
         return redirect("learning:article", article_id=article_id)
 
-    word_strings = [ws.word.word for ws in word_statuses]
+    word_strings = [w.word for w in selected_words]
     interest_names = [i.name for i in interests]
 
     article_data = ai.generate_article(word_strings, interest_names, complexity, article_length)
@@ -414,7 +416,9 @@ def regenerate(request, article_id):
         return redirect("learning:article", article_id=article_id)
 
     hit_word_strings = article_data.get("hit_words", [])
-    hit_words = Word.objects.filter(word_bank=word_bank, word__in=hit_word_strings)
+    hit_words = Word.objects.filter(
+        bank_entries__word_bank=word_bank, word__in=hit_word_strings
+    )
     mastered_word_strings = services.get_mastered_words(request.user, word_bank)
     content_html = services.build_highlighted_html(
         article_data["content"],
@@ -428,11 +432,11 @@ def regenerate(request, article_id):
         title=article_data["title"],
         content=article_data["content"],
         content_html=content_html,
-        target_word_ids=[ws.word.id for ws in word_statuses],
+        target_word_ids=[w.id for w in selected_words],
         mastered_word_ids=[
             w.id
             for w in Word.objects.filter(
-                word_bank=word_bank, word__in=mastered_word_strings
+                bank_entries__word_bank=word_bank, word__in=mastered_word_strings
             )
         ],
         hit_word_ids=[w.id for w in hit_words],
@@ -445,8 +449,8 @@ def regenerate(request, article_id):
     services.cleanup_old_articles(request.user)
     services.increment_occurrence([w.id for w in hit_words], request.user)
 
-    quiz_data = ai.generate_quiz(article_data["title"], article_data["content"])
-    if quiz_data is not None:
+    quiz_data = article_data.get("quiz", {})
+    if quiz_data and quiz_data.get("questions"):
         Quiz.objects.create(article=new_article, questions=quiz_data["questions"])
 
     services.record_learning_activity(request.user, articles_read=1)

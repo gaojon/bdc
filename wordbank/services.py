@@ -4,7 +4,7 @@ import csv
 import io
 import logging
 
-from wordbank.models import Word, WordBank
+from wordbank.models import Word, WordBank, WordBankEntry
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +23,6 @@ def parse_csv(file_obj, delimiter: str = ",") -> list[dict]:
     Returns:
         List of dicts with keys: word, part_of_speech, definition, is_phrase.
     """
-    import re
-
     words = []
     reader = csv.reader(file_obj, delimiter=delimiter)
 
@@ -36,7 +34,7 @@ def parse_csv(file_obj, delimiter: str = ",") -> list[dict]:
             logger.warning("Row %d: expected 3 columns, got %d. Skipping.", row_num, len(row))
             continue
 
-        word_text = row[0].strip().lstrip('﻿')
+        word_text = row[0].strip().lstrip("﻿")
         col2 = row[1].strip()
         col3 = row[2].strip()
 
@@ -45,9 +43,9 @@ def parse_csv(file_obj, delimiter: str = ",") -> list[dict]:
             continue
 
         # Detect format: if col2 is a known POS abbreviation, use old format
-        known_pos = {'n', 'v', 'vt', 'vi', 'a', 'adj', 'ad', 'adv', 'prep',
-                     'pron', 'conj', 'interj', 'num', 'art', 'aux'}
-        col2_clean = col2.rstrip('.').lower().replace(';', ' ').split()
+        known_pos = {"n", "v", "vt", "vi", "a", "adj", "ad", "adv", "prep",
+                     "pron", "conj", "interj", "num", "art", "aux"}
+        col2_clean = col2.rstrip(".").lower().replace(";", " ").split()
 
         if col2_clean and all(p in known_pos for p in col2_clean):
             # Old format: col2 is POS, col3 is definition
@@ -55,11 +53,10 @@ def parse_csv(file_obj, delimiter: str = ",") -> list[dict]:
             definition = col3
         else:
             # New format: col3 contains "POS. definition POS. definition ..."
-            # col2 is pronounce (ignored)
             pos = _extract_pos_from_def(col3)
             definition = col3
 
-        pronounce = col2 if not (col2_clean and all(p in known_pos for p in col2_clean)) else ''
+        pronounce = col2 if not (col2_clean and all(p in known_pos for p in col2_clean)) else ""
 
         is_phrase = " " in word_text
 
@@ -82,12 +79,11 @@ def _extract_pos_from_def(definition: str) -> str:
         "a. 抽象的 n. 摘要"            →  "a; n"
     """
     import re
-    # Normalize fullwidth dots to regular dots
-    definition = definition.replace('．', '.')
-    pos_markers = re.findall(r'(?:^|\s)([a-z]{1,6})\.\s', definition)
+    definition = definition.replace("．", ".")
+    pos_markers = re.findall(r"(?:^|\s)([a-z]{1,6})\.\s", definition)
     if pos_markers:
-        return '; '.join(pos_markers)
-    return ''
+        return "; ".join(pos_markers)
+    return ""
 
 
 def import_words(
@@ -95,7 +91,7 @@ def import_words(
     parsed_data: list[dict],
     skip_duplicates: bool = True,
 ) -> dict:
-    """Bulk-create Word objects from parsed CSV data.
+    """Import words into the shared Word table and link via WordBankEntry.
 
     Args:
         word_bank: The WordBank to import into.
@@ -112,20 +108,35 @@ def import_words(
     for entry in parsed_data:
         word_text = entry["word"]
 
-        # Check for existing word in this bank
-        if Word.objects.filter(word_bank=word_bank, word=word_text).exists():
+        # Check if already linked to this bank
+        if WordBankEntry.objects.filter(
+            word_bank=word_bank, word__word=word_text
+        ).exists():
             if skip_duplicates:
                 skipped += 1
                 continue
 
         try:
-            Word.objects.create(
-                word_bank=word_bank,
+            # Get or create the shared Word (dedup across banks)
+            word, word_created = Word.objects.get_or_create(
                 word=word_text,
-                pronounce=entry.get("pronounce", ""),
-                part_of_speech=entry.get("part_of_speech", ""),
-                definition=entry.get("definition", ""),
-                is_phrase=entry.get("is_phrase", False),
+                defaults={
+                    "pronounce": entry.get("pronounce", ""),
+                    "part_of_speech": entry.get("part_of_speech", ""),
+                    "definition": entry.get("definition", ""),
+                    "is_phrase": entry.get("is_phrase", False),
+                },
+            )
+            # If word already exists but new import has richer data, update it
+            if not word_created and entry.get("definition", "") and len(entry["definition"]) > len(word.definition):
+                word.definition = entry["definition"]
+                word.part_of_speech = entry.get("part_of_speech", word.part_of_speech)
+                word.save(update_fields=["definition", "part_of_speech"])
+
+            # Link word to bank
+            WordBankEntry.objects.get_or_create(
+                word_bank=word_bank,
+                word=word,
             )
             created += 1
         except Exception as e:

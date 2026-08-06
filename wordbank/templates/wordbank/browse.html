@@ -28,9 +28,11 @@
     </form>
 </details>
 
+{% if user.is_superuser %}
 <p>
     <a href="{% url 'wordbank:export_csv' word_bank.id %}" role="button" class="secondary outline">Export CSV</a>
 </p>
+{% endif %}
 
 <hr>
 

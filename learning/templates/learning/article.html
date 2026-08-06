@@ -7,24 +7,24 @@
 <h1>{{ article.title }}</h1>
 <p><small>Generated {{ article.generated_at|date:"Y-m-d H:i" }} | Complexity: {{ article.sentence_complexity }}/9</small></p>
 
-<!-- Article content with highlighted words -->
-<article>
-    {{ article.content_html|safe }}
-</article>
-
-<!-- Glossary of hit words -->
+<!-- Review Words glossary — shown before the article -->
 {% if hit_words %}
-<details>
-    <summary>Words in this article ({{ hit_words|length }})</summary>
+<details open data-persist="review-words-{{ article.id }}">
+    <summary>Review Words in this article ({{ hit_words|length }})</summary>
     <table>
         <thead>
-            <tr><th>Word</th><th>Part of Speech</th><th>Definition</th></tr>
+            <tr><th>Word</th><th>US / UK</th><th>Definition</th></tr>
         </thead>
         <tbody>
             {% for word in hit_words %}
             <tr>
                 <td><strong>{{ word.word }}</strong></td>
-                <td>{{ word.part_of_speech }}</td>
+                <td>
+                    {% if word.pronounce_us %}US /{{ word.pronounce_us }}/{% endif %}
+                    {% if word.pronounce_us and word.pronounce_uk %}<br>{% endif %}
+                    {% if word.pronounce_uk %}UK /{{ word.pronounce_uk }}/{% endif %}
+                    {% if not word.pronounce_us and not word.pronounce_uk and word.pronounce %}/{{ word.pronounce }}/{% endif %}
+                </td>
                 <td>{{ word.definition }}</td>
             </tr>
             {% endfor %}
@@ -39,6 +39,11 @@
 {% for w in mastered_words_in_article %}<span class="word-mastered">{{ w.word }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}
 </small></p>
 {% endif %}
+
+<!-- Article content with highlighted words -->
+<article>
+    {{ article.content_html|safe }}
+</article>
 
 <hr>
 

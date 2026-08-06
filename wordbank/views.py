@@ -13,7 +13,7 @@ from django.db.models.functions import Lower
 from learning.models import UserWordStatus
 from learning.services import get_mastered_texts
 from utils.constants import WordStatus
-from wordbank.models import Word, WordBank
+from wordbank.models import Word, WordBank, WordBankEntry
 from wordbank.services import import_csv_to_bank
 
 
@@ -29,14 +29,18 @@ def manage(request):
 def browse(request, bank_id):
     """Browse and edit words within a specific word bank."""
     word_bank = get_object_or_404(WordBank, id=bank_id)
-    words = word_bank.words.all().order_by(Lower("word"))
+    words = Word.objects.filter(
+        bank_entries__word_bank=word_bank
+    ).order_by(Lower("word"))
+
+    bank_word_ids = list(words.values_list("id", flat=True))
 
     # Get learning status for this user for all words in the bank
     user_statuses = {
         ws.word_id: ws.status
         for ws in UserWordStatus.objects.filter(
             user=request.user,
-            word__word_bank=word_bank,
+            word_id__in=bank_word_ids,
         )
     }
 
@@ -168,9 +172,14 @@ def import_csv(request, bank_id):
 
 @login_required
 def export_csv(request, bank_id):
-    """Export all words in a word bank as a CSV file (Tab-separated)."""
+    """Export all words in a word bank as a CSV file (superuser only)."""
+    if not request.user.is_superuser:
+        messages.error(request, "Access denied.")
+        return redirect("wordbank:manage")
     word_bank = get_object_or_404(WordBank, id=bank_id)
-    words = word_bank.words.all().order_by(Lower("word"))
+    words = Word.objects.filter(
+        bank_entries__word_bank=word_bank
+    ).order_by(Lower("word"))
 
     response = HttpResponse(content_type="text/tab-separated-values")
     response["Content-Disposition"] = (
@@ -199,7 +208,10 @@ def create_bank(request):
 
 @login_required
 def delete_bank(request, bank_id):
-    """Delete a word bank and all its words (POST only)."""
+    """Delete a word bank and all its words (superuser only, POST only)."""
+    if not request.user.is_superuser:
+        messages.error(request, "Access denied.")
+        return redirect("wordbank:manage")
     if request.method != "POST":
         return redirect("wordbank:manage")
 

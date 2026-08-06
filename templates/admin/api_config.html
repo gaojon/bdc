@@ -24,8 +24,8 @@
 
     <label>Model
         <input type="text" name="model" value="{{ model }}"
-               placeholder="deepseek-chat">
-        <small>The model name to use. Common options: <code>deepseek-chat</code>, <code>deepseek-reasoner</code>.</small>
+               placeholder="deepseek-v4-flash">
+        <small>The model ID to use. See reference table below.</small>
     </label>
 
     <label>Timeout (seconds)
@@ -44,14 +44,43 @@
 
 <hr>
 
-<h2>Current Connection Test</h2>
-<p class="muted">You can test the API connection by generating a simple article from the main app. If generation works, the configuration is valid.</p>
+<h2>Available Models</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Model ID</th>
+            <th>定位</th>
+            <th>Context</th>
+            <th>输入价格</th>
+            <th>输出价格</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr {% if model == 'deepseek-v4-flash' %}style="background:var(--pico-primary-focus);opacity:0.2;"{% endif %}>
+            <td><code>deepseek-v4-flash</code> {% if model == 'deepseek-v4-flash' %}<mark>current</mark>{% endif %}</td>
+            <td>通用 / 经济</td>
+            <td>1M tokens</td>
+            <td>$0.14 / 1M</td>
+            <td>$0.28 / 1M</td>
+        </tr>
+        <tr {% if model == 'deepseek-v4-pro' %}style="background:var(--pico-primary-focus);opacity:0.2;"{% endif %}>
+            <td><code>deepseek-v4-pro</code> {% if model == 'deepseek-v4-pro' %}<mark>current</mark>{% endif %}</td>
+            <td>高性能推理</td>
+            <td>1M tokens</td>
+            <td>$0.435 / 1M</td>
+            <td>$0.87 / 1M</td>
+        </tr>
+    </tbody>
+</table>
+<small>来源: <a href="https://api-docs.deepseek.com/zh-cn" target="_blank" rel="noopener">DeepSeek API 文档</a>. <code>deepseek-chat</code> 和 <code>deepseek-reasoner</code> 已于 2026-07-24 退役。</small>
+
+<hr>
 
 <h2>Configuration File</h2>
 <p class="muted">These values are stored in <code>config/app_config.json</code> under the <code>deepseek</code> key:</p>
 <pre style="background:#f3f4f6;padding:1em;border-radius:4px;overflow-x:auto;">{
   "deepseek": {
-    "api_key": "{{ api_key|default:"(not set)" }}",
+    "api_key": "{% if api_key %}{{ api_key|slice:":5" }}...{{ api_key|slice:"-4:" }}{% else %}(not set){% endif %}",
     "base_url": "{{ base_url }}",
     "model": "{{ model }}",
     "timeout_seconds": {{ timeout_seconds }}

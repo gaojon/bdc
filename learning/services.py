@@ -1,5 +1,6 @@
 """Core learning business logic: word selection, highlighting, spaced repetition."""
 
+import html
 import logging
 import random
 import re
@@ -16,7 +17,7 @@ from learning.models import (
 )
 from utils.config import get_config
 from utils.constants import SPACED_REPETITION_INTERVALS, WordStatus
-from wordbank.models import Word, WordBank
+from wordbank.models import Word, WordBank, WordBankEntry
 
 logger = logging.getLogger(__name__)
 
@@ -28,69 +29,64 @@ logger = logging.getLogger(__name__)
 
 def select_words_for_article(
     user: User, word_bank: WordBank, max_words: int | None = None
-) -> list[UserWordStatus]:
+) -> list[Word]:
     """Select words for article generation.
 
-    Includes words with status: learning, new, review.
-    Also includes words with no UserWordStatus record (implicitly new).
-    Excludes mastered and removed words (D-12).
+    Returns Word objects from the bank that the user hasn't mastered yet.
+    No UserWordStatus records are created here — they are created lazily
+    when a word actually appears in an article (hit).
+
+    Excludes mastered words. Unseen words are implicitly treated as "new".
 
     If the pool exceeds max_words, a random sample is taken (D-20).
     """
     if max_words is None:
         max_words = get_config("article.max_word_pool_size", 500)
 
-    # Ensure every word in the bank has a UserWordStatus (implicitly "new")
-    _ensure_user_word_statuses(user, word_bank)
-
-    word_pool = list(
-        UserWordStatus.objects.filter(
-            user=user,
-            word__word_bank=word_bank,
-            status__in=[WordStatus.LEARNING, WordStatus.NEW, WordStatus.REVIEW],
-        ).select_related("word")
+    # Get all word IDs in this bank (via bridge table)
+    bank_word_ids = set(
+        WordBankEntry.objects.filter(word_bank=word_bank)
+        .values_list("word_id", flat=True)
     )
 
-    if len(word_pool) > max_words:
-        word_pool = random.sample(word_pool, max_words)
+    if not bank_word_ids:
+        return []
 
-    return word_pool
-
-
-def _ensure_user_word_statuses(user: User, word_bank: WordBank) -> None:
-    """Create 'new' status records for words the user hasn't encountered yet."""
-    existing_word_ids = set(
+    # Find mastered word IDs for this user (only these are excluded)
+    mastered_ids = set(
         UserWordStatus.objects.filter(
             user=user,
-            word__word_bank=word_bank,
+            word_id__in=bank_word_ids,
+            status=WordStatus.MASTERED,
         ).values_list("word_id", flat=True)
     )
 
-    all_word_ids = set(
-        Word.objects.filter(word_bank=word_bank).values_list("id", flat=True)
-    )
+    # Pool = all bank words minus mastered
+    available_ids = list(bank_word_ids - mastered_ids)
 
-    missing_ids = all_word_ids - existing_word_ids
-    if missing_ids:
-        new_statuses = [
-            UserWordStatus(user=user, word_id=wid, status=WordStatus.NEW)
-            for wid in missing_ids
-        ]
-        UserWordStatus.objects.bulk_create(new_statuses, ignore_conflicts=True)
+    if len(available_ids) > max_words:
+        available_ids = random.sample(available_ids, max_words)
+
+    return list(Word.objects.filter(id__in=available_ids))
 
 
 def get_mastered_words(user: User, word_bank: WordBank) -> list[str]:
     """Return the list of mastered word strings for a user in a word bank.
 
     These appear in articles with light highlighting but are NOT in the AI pool.
+    Uses WordBankEntry to find words belonging to this bank.
     """
-    statuses = UserWordStatus.objects.filter(
-        user=user,
-        word__word_bank=word_bank,
-        status=WordStatus.MASTERED,
-    ).select_related("word")
+    bank_word_ids = WordBankEntry.objects.filter(
+        word_bank=word_bank
+    ).values_list("word_id", flat=True)
 
-    return [s.word.word for s in statuses]
+    return list(
+        UserWordStatus.objects.filter(
+            user=user,
+            word_id__in=bank_word_ids,
+            status=WordStatus.MASTERED,
+        ).values_list("word__word", flat=True)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +118,8 @@ def build_highlighted_html(
         reverse=True,
     )
 
-    # Split content into paragraphs and wrap in <p> tags
+    # Escape HTML first (XSS prevention), then split and wrap in <p> tags
+    content = html.escape(content)
     paragraphs = content.strip().split("\n\n")
     html_paragraphs = []
 
@@ -181,28 +178,6 @@ def schedule_review(word_status: UserWordStatus) -> None:
         days=intervals[0]
     )
     word_status.save()
-
-    # Cross-bank sync: master the same word text in all other banks
-    _sync_mastery_across_banks(word_status.user, word_status.word.word)
-
-
-def _sync_mastery_across_banks(user, word_text: str) -> None:
-    """When a word is mastered in one bank, also master it in all other banks."""
-    from wordbank.models import Word
-
-    same_words = Word.objects.filter(word__iexact=word_text)
-    for w in same_words:
-        ws, _ = UserWordStatus.objects.get_or_create(
-            user=user,
-            word=w,
-            defaults={"status": WordStatus.LEARNING},
-        )
-        if ws.status != WordStatus.MASTERED:
-            ws.status = WordStatus.MASTERED
-            ws.mastered_at = timezone.now()
-            ws.review_interval = get_config("spaced_repetition.intervals", SPACED_REPETITION_INTERVALS)[0]
-            ws.next_review_at = ws.mastered_at + timezone.timedelta(days=ws.review_interval)
-            ws.save()
 
 
 def get_mastered_texts(user) -> set:
@@ -290,7 +265,25 @@ def batch_master_words(word_statuses: list[UserWordStatus]) -> int:
 
 
 def increment_occurrence(word_ids: list[int], user: User) -> None:
-    """Increment occurrence_count for words that appeared in an article."""
+    """Increment occurrence_count for words that appeared in an article.
+
+    Creates UserWordStatus records lazily for words the user hasn't
+    encountered before.
+    """
+    existing_ids = set(
+        UserWordStatus.objects.filter(
+            user=user, word_id__in=word_ids
+        ).values_list("word_id", flat=True)
+    )
+
+    # Create status records for newly encountered words
+    new_ids = [wid for wid in word_ids if wid not in existing_ids]
+    if new_ids:
+        UserWordStatus.objects.bulk_create([
+            UserWordStatus(user=user, word_id=wid, status=WordStatus.LEARNING)
+            for wid in new_ids
+        ], ignore_conflicts=True)
+
     UserWordStatus.objects.filter(
         user=user,
         word_id__in=word_ids,

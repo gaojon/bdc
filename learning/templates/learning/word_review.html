@@ -9,31 +9,63 @@
 <form method="post" action="{% url 'learning:save_word_decisions' article.id %}">
     {% csrf_token %}
 
-    <!-- Batch actions -->
     <div style="margin-bottom: 1em;">
         <button type="submit" name="action" value="master_all" class="contrast">Master All</button>
     </div>
 
-    <div class="word-review-grid">
-        {% for item in word_info %}
-        <article class="word-card">
-            <h3>
-                <label>
-                    <input type="checkbox" name="master_word_ids" value="{{ item.word.id }}"
-                           {% if item.is_already_mastered %}disabled{% endif %}>
-                    {{ item.word.word }}
-                </label>
-            </h3>
-            <p><small>{{ item.word.part_of_speech }}</small></p>
-            <p>{{ item.word.definition }}</p>
-            {% if item.is_already_mastered %}
-                <mark>Already Mastered</mark>
-            {% else %}
-                <span class="status-badge status-{{ item.status }}">{{ item.status }}</span>
+    {% for item in word_info %}
+    <article style="margin-bottom: 1.5em; padding: 1em;">
+        <div style="display:flex; align-items:center; gap:0.5em; margin-bottom:0.5em;">
+            <input type="checkbox" name="master_word_ids" value="{{ item.word.id }}"
+                   {% if item.is_already_mastered %}disabled{% endif %}>
+            <strong style="font-size:1.2em;">{{ item.word.word }}</strong>
+            {% if item.word.pronounce_us %}
+            <small style="color:var(--pico-muted-color);">US /{{ item.word.pronounce_us }}/</small>
             {% endif %}
-        </article>
-        {% endfor %}
-    </div>
+            {% if item.word.pronounce_uk %}
+            <small style="color:var(--pico-muted-color);">UK /{{ item.word.pronounce_uk }}/</small>
+            {% endif %}
+            {% if not item.word.pronounce_us and not item.word.pronounce_uk and item.word.pronounce %}
+            <small style="color:var(--pico-muted-color);">/{{ item.word.pronounce }}/</small>
+            {% endif %}
+            {% if item.is_already_mastered %}
+            <mark>Mastered</mark>
+            {% else %}
+            <span class="status-badge status-{{ item.status }}">{{ item.status }}</span>
+            {% endif %}
+        </div>
+
+        {% if item.word.definition %}
+        <p style="margin:0.2em 0 0.4em 1.8em;">{{ item.word.definition }}</p>
+        {% endif %}
+
+        {% if item.word.english_definition %}
+        <p style="margin:0.2em 0 0.4em 1.8em; color:var(--pico-muted-color);">
+            <small>{{ item.word.english_definition|linebreaksbr }}</small>
+        </p>
+        {% endif %}
+
+        {% if item.word.examples %}
+        <p style="margin:0.2em 0 0.4em 1.8em; font-style:italic; color:var(--pico-muted-color);">
+            <small>{{ item.word.examples|linebreaksbr }}</small>
+        </p>
+        {% endif %}
+
+        {% if item.word.synonyms or item.word.antonyms %}
+        <p style="margin:0.2em 0 0 1.8em;">
+            <small>
+            {% if item.word.synonyms %}
+            <span style="color:#059669;">⇧ {{ item.word.synonyms }}</span>
+            {% endif %}
+            {% if item.word.synonyms and item.word.antonyms %}&nbsp;&nbsp;{% endif %}
+            {% if item.word.antonyms %}
+            <span style="color:#dc2626;">⇩ {{ item.word.antonyms }}</span>
+            {% endif %}
+            </small>
+        </p>
+        {% endif %}
+    </article>
+    {% endfor %}
 
     <div style="margin-top: 2em;">
         <button type="submit" name="action" value="save_selected">Mark Selected as Mastered</button>

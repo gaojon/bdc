@@ -4,7 +4,7 @@
 <h1>{{ title }}</h1>
 
 <div style="max-width: 600px;">
-    <p>Importing into: <strong>{{ word_bank.name }}</strong> (currently {{ word_bank.words.count }} words)</p>
+    <p>Importing into: <strong>{{ word_bank.name }}</strong> (currently {{ word_bank.entries.count }} words)</p>
 
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}

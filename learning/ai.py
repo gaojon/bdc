@@ -40,92 +40,58 @@ def get_client() -> OpenAI:
 # ---------------------------------------------------------------------------
 
 
-def build_article_prompt(
+def build_combined_prompt(
     interests: list[str],
     word_list: list[str],
     complexity: int,
     word_count: int = 500,
 ) -> tuple[str, str]:
-    """Build system and user prompts for article generation.
+    """Build system and user prompts for article + quiz generation in one call.
 
     Returns (system_prompt, user_prompt).
     """
     system_prompt = (
-        "You are an English article writer for language learners. "
-        "Write engaging, natural articles that incorporate target vocabulary "
-        "words seamlessly. Do NOT force every word in — quality over quantity."
+        "You are an English teacher. Write an engaging article for language "
+        "learners that incorporates target vocabulary, then create 5 reading "
+        "comprehension quiz questions about it. Return everything in one JSON."
     )
 
     interest_str = ", ".join(interests) if interests else "general topics"
     word_str = "\n".join(f"- {w}" for w in word_list)
     min_words = get_config("article.min_hit_words", 25)
 
-    user_prompt = f"""Write an article in English with the following requirements:
+    user_prompt = f"""Write an English article and create a quiz for it.
 
+ARTICLE REQUIREMENTS:
 - Topic/Interest: {interest_str}
 - Target word count: ~{word_count} words
-- Sentence complexity level: {complexity}/9 (1=very simple, 9=native-level complex)
-- Target vocabulary words to include (try to use as many as possible, minimum {min_words}):
-
+- Sentence complexity: {complexity}/9 (1=very simple, 9=native-level)
+- Target vocabulary words (you MUST use at least {min_words} of these — aim for 80%+):
 {word_str}
 
-Return your response as a JSON object with this exact structure:
+QUIZ REQUIREMENTS:
+- Exactly 5 multiple-choice questions (A/B/C/D), one correct answer each
+- Test reading comprehension, NOT vocabulary memorization
+- Include evidence/quotes from the article in explanations
+- Distractors should be plausible but clearly wrong
+
+Return as JSON:
 {{
   "title": "article title",
   "content": "full article text with paragraphs separated by \\n\\n",
   "hit_words": ["word1", "word2"],
-  "glossary": {{
-    "word1": "brief definition in the context of this article",
-    "word2": "brief definition in the context of this article"
+  "glossary": {{"word1": "brief definition in context", "word2": "..."}},
+  "quiz": {{
+    "questions": [
+      {{"id": 1, "question": "...", "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}}, "correct": "A", "explanation": "..."}}
+    ]
   }}
 }}
 
 Important:
-- The article must flow naturally. Do NOT force every word in — quality over quantity.
-- Each hit_word must be exactly as provided (preserve case, hyphenation, etc.).
-- The glossary should contain a short, context-appropriate definition for each hit_word.
+- Article must flow naturally. Quality over quantity for hit_words.
+- Each hit_word must be exactly as provided (preserve case/hyphens).
 - Return ONLY the JSON object, no other text."""
-
-    return system_prompt, user_prompt
-
-
-def build_quiz_prompt(title: str, content: str) -> tuple[str, str]:
-    """Build system and user prompts for quiz generation.
-
-    Returns (system_prompt, user_prompt).
-    """
-    system_prompt = (
-        "You are an English test creator. Create reading comprehension "
-        "questions based on the provided article."
-    )
-
-    user_prompt = f"""Based on the following article, create exactly 5 multiple-choice quiz questions.
-
-Article title: {title}
-
-Article content:
-{content}
-
-Requirements:
-- Each question must have 4 options (A/B/C/D), only ONE correct answer
-- Questions must test reading comprehension, NOT vocabulary memorization
-- Include evidence (quote/excerpt) from the article for each correct answer
-- Distractors (wrong options) should be plausible but clearly wrong
-
-Return your response as a JSON object with this exact structure:
-{{
-  "questions": [
-    {{
-      "id": 1,
-      "question": "question text",
-      "options": {{ "A": "...", "B": "...", "C": "...", "D": "..." }},
-      "correct": "A",
-      "explanation": "explanation with evidence from the article"
-    }}
-  ]
-}}
-
-Return ONLY the JSON object, no other text."""
 
     return system_prompt, user_prompt
 
@@ -164,12 +130,12 @@ def parse_json_response(content: str | None) -> dict | None:
     return None
 
 
-def validate_article_response(data: dict) -> dict | None:
-    """Validate article response has required fields. Returns data or None."""
-    required = ["title", "content", "hit_words", "glossary"]
+def validate_response(data: dict) -> dict | None:
+    """Validate combined article+quiz response has required fields."""
+    required = ["title", "content", "hit_words", "glossary", "quiz"]
     for field in required:
         if field not in data:
-            logger.warning("Article response missing field: %s", field)
+            logger.warning("Response missing field: %s", field)
             return None
 
     if not isinstance(data["hit_words"], list):
@@ -180,28 +146,23 @@ def validate_article_response(data: dict) -> dict | None:
         logger.warning("glossary is not a dict")
         return None
 
-    return data
-
-
-def validate_quiz_response(data: dict) -> dict | None:
-    """Validate quiz response has exactly 5 questions. Returns data or None."""
-    if "questions" not in data:
-        logger.warning("Quiz response missing 'questions'")
+    quiz = data["quiz"]
+    if "questions" not in quiz:
+        logger.warning("Quiz missing 'questions'")
         return None
 
-    questions = data["questions"]
+    questions = quiz["questions"]
     if not isinstance(questions, list) or len(questions) != 5:
         logger.warning("Quiz has %d questions (expected 5)", len(questions))
         return None
 
     for q in questions:
-        required = ["id", "question", "options", "correct", "explanation"]
-        for field in required:
+        for field in ["id", "question", "options", "correct", "explanation"]:
             if field not in q:
                 logger.warning("Quiz question %s missing field: %s", q.get("id"), field)
                 return None
         if not isinstance(q["options"], dict) or len(q["options"]) != 4:
-            logger.warning("Quiz question %s: options must be a dict with 4 entries", q.get("id"))
+            logger.warning("Quiz question %s: options must have 4 entries", q.get("id"))
             return None
 
     return data
@@ -218,7 +179,7 @@ def generate_article(
     complexity: int,
     word_count: int | None = None,
 ) -> dict | None:
-    """Call DeepSeek API to generate an article incorporating target words.
+    """Call DeepSeek API to generate article + quiz in a single call.
 
     Args:
         word_strings: List of word text strings to include.
@@ -227,14 +188,14 @@ def generate_article(
         word_count: Target article word count (from config if None).
 
     Returns:
-        dict with keys: title, content, hit_words, glossary.
-        None on any failure (D-16: no retry).
+        dict with keys: title, content, hit_words, glossary, quiz.
+        None on any failure.
     """
     if word_count is None:
         word_count = get_config("article.target_word_count", 500)
 
-    model = get_config("deepseek.model", "deepseek-chat")
-    sys_prompt, user_prompt = build_article_prompt(
+    model = get_config("deepseek.model", "deepseek-v4-flash")
+    sys_prompt, user_prompt = build_combined_prompt(
         interests, word_strings, complexity, word_count
     )
 
@@ -247,46 +208,13 @@ def generate_article(
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.8,
-            max_tokens=4096,
+            max_tokens=6144,
+            extra_body={"thinking": {"type": "disabled"}},
         )
         content = response.choices[0].message.content
         data = parse_json_response(content)
-        return validate_article_response(data) if data else None
+        return validate_response(data) if data else None
 
     except Exception as e:
         logger.error("Article generation failed: %s", e)
-        return None
-
-
-def generate_quiz(title: str, content: str) -> dict | None:
-    """Call DeepSeek API to generate quiz questions for an article.
-
-    Args:
-        title: Article title.
-        content: Article content text.
-
-    Returns:
-        dict with key 'questions' (list of 5 question dicts).
-        None on any failure (D-16: no retry).
-    """
-    model = get_config("deepseek.model", "deepseek-chat")
-    sys_prompt, user_prompt = build_quiz_prompt(title, content)
-
-    try:
-        client = get_client()
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.7,
-            max_tokens=2048,
-        )
-        content = response.choices[0].message.content
-        data = parse_json_response(content)
-        return validate_quiz_response(data) if data else None
-
-    except Exception as e:
-        logger.error("Quiz generation failed: %s", e)
         return None

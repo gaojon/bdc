@@ -25,14 +25,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "deepseek": {
         "api_key": "",
         "base_url": "https://api.deepseek.com",
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-flash",
         "timeout_seconds": 120,
     },
     "article": {
         "target_word_count": 500,
         "min_hit_words": 25,
         "max_hit_words": 50,
-        "max_word_pool_size": 500,
+        "max_word_pool_size": 50,
     },
     "limits": {
         "daily_generation_limit": 3,

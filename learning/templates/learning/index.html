@@ -17,7 +17,7 @@
                     <option value="">-- Select a word bank --</option>
                     {% for bank in word_banks %}
                     <option value="{{ bank.id }}" {% if bank.id == selected_bank_id %}selected{% endif %}>
-                        {{ bank.name }} ({{ bank.words.count }} words)
+                        {{ bank.name }} ({{ bank.entries.count }} words)
                     </option>
                     {% endfor %}
                 </select>
