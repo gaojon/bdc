@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Learn – BDC Vocabulary{% endblock %}
+{% block title %}BDC{% endblock %}
 
 {% block content %}
-<h1>Generate Article</h1>
+<h1>BDC</h1>
 
+{# ---- Article Generation Form ---- #}
 <div class="grid">
     <div>
         <form method="post" action="{% url 'learning:generate' %}">
@@ -73,4 +74,56 @@
     </div>
 </div>
 
+{# ---- Article History ---- #}
+<hr>
+<h2>Article History</h2>
+
+{% if articles %}
+<table>
+    <thead>
+        <tr>
+            <th>Title</th>
+            <th>Bank</th>
+            {% if user.is_superuser %}<th>User</th>{% endif %}
+            <th>Interests</th>
+            <th>Date</th>
+            <th>Words</th>
+            <th>Quiz</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for article in articles %}
+        <tr>
+            <td>
+                <a href="{% url 'learning:article_detail' article.id %}">{{ article.title }}</a>
+                {% if article.is_regenerated %}<small>(regenerated)</small>{% endif %}
+            </td>
+            <td>{{ article.word_bank.name|default:"—" }}</td>
+            {% if user.is_superuser %}<td>{{ article.user.username }}</td>{% endif %}
+            <td>
+                {{ article.interests_display }}
+                {% if article.has_more_interests %}
+                <small title="{{ article.interest_names|join:', ' }}">…</small>
+                {% endif %}
+            </td>
+            <td>{{ article.generated_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ article.hit_word_ids|length }}</td>
+            <td>
+                {% if article.quiz.submitted_at %}
+                    {{ article.quiz.score }}/{{ article.quiz.questions|length }}
+                {% elif article.quiz.is_skipped %}
+                    Skipped
+                {% elif article.quiz %}
+                    Pending
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No articles yet. Generate your first article above!</p>
+{% endif %}
 {% endblock %}

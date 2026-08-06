@@ -11,8 +11,8 @@
     <nav class="container-fluid">
         <ul>
             {% if user.is_authenticated %}
+            <li><a href="{% url 'learning:index' %}">BDC</a></li>
             <li><a href="{% url 'wordbank:manage' %}">Word Banks</a></li>
-            <li><a href="{% url 'learning:history' %}">History</a></li>
             <li><a href="{% url 'learning:stats' %}">Stats</a></li>
             {% if user.is_superuser %}
             <li><a href="{% url 'dashboard:dashboard' %}">Manage</a></li>

@@ -44,13 +44,43 @@ logger = logging.getLogger(__name__)
 
 @login_required
 def index(request):
-    """Home page: select word bank, interests, complexity, and generate articles."""
+    """Home page: select word bank, interests, complexity, and generate articles.
+
+    Also shows article history below the generation form.
+    Admin/superuser sees all users' articles; regular users see only their own.
+    """
     word_banks = WordBank.objects.all()
     interests = Interest.objects.all()
     profile = request.user.profile
 
     # Daily usage info
     allowed, remaining = services.check_daily_limit(request.user)
+
+    # Article history: superuser sees all, regular user sees own
+    if request.user.is_superuser:
+        articles = Article.objects.select_related("word_bank").prefetch_related("interests", "quiz").order_by("-generated_at")
+    else:
+        articles = Article.objects.filter(
+            user=request.user
+        ).select_related("word_bank").prefetch_related("interests", "quiz").order_by("-generated_at")
+
+    # Annotate each article with its interest names (max 2 displayed)
+    article_list = []
+    for a in articles:
+        interest_names = [i.name for i in a.interests.all()]
+        article_list.append({
+            "id": a.id,
+            "title": a.title,
+            "word_bank": a.word_bank,
+            "generated_at": a.generated_at,
+            "hit_word_ids": a.hit_word_ids,
+            "is_regenerated": a.is_regenerated,
+            "quiz": a.quiz if hasattr(a, "quiz") else None,
+            "interest_names": interest_names,
+            "interests_display": ", ".join(interest_names[:2]),
+            "has_more_interests": len(interest_names) > 2,
+            "user": a.user,
+        })
 
     context = {
         "word_banks": word_banks,
@@ -63,6 +93,7 @@ def index(request):
         "can_generate": allowed,
         "remaining_generations": remaining,
         "daily_limit": profile.daily_limit if profile.daily_limit >= 0 else get_config("limits.daily_generation_limit", 3),
+        "articles": article_list,
     }
     return render(request, "learning/index.html", context)
 
@@ -194,7 +225,10 @@ def generate_article(request):
 @login_required
 def article(request, article_id):
     """Display article with highlighted words and quiz."""
-    article = get_object_or_404(Article, id=article_id, user=request.user)
+    if request.user.is_superuser:
+        article = get_object_or_404(Article, id=article_id)
+    else:
+        article = get_object_or_404(Article, id=article_id, user=request.user)
 
     quiz = None
     if hasattr(article, "quiz"):
@@ -213,7 +247,7 @@ def article(request, article_id):
         "quiz": quiz,
         "hit_words": hit_words,
         "mastered_words_in_article": mastered_words_in_article,
-        "read_only": False,
+        "read_only": request.user != article.user,
     }
     return render(request, "learning/article.html", context)
 
@@ -426,21 +460,17 @@ def regenerate(request, article_id):
 
 @login_required
 def history(request):
-    """View past articles with pagination."""
-    articles = Article.objects.filter(
-        user=request.user
-    ).select_related("word_bank").order_by("-generated_at")
-
-    context = {
-        "articles": articles,
-    }
-    return render(request, "learning/history.html", context)
+    """Redirect to index page (history is now integrated there)."""
+    return redirect("learning:index")
 
 
 @login_required
 def article_detail(request, article_id):
     """Read-only view of a past article."""
-    article = get_object_or_404(Article, id=article_id, user=request.user)
+    if request.user.is_superuser:
+        article = get_object_or_404(Article, id=article_id)
+    else:
+        article = get_object_or_404(Article, id=article_id, user=request.user)
 
     quiz = None
     if hasattr(article, "quiz"):
@@ -453,7 +483,7 @@ def article_detail(request, article_id):
         "quiz": quiz,
         "hit_words": hit_words,
         "mastered_words_in_article": [],
-        "read_only": True,
+        "read_only": request.user != article.user,
     }
     return render(request, "learning/article.html", context)
 
