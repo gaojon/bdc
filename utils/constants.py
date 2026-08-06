@@ -6,9 +6,8 @@ from django.db import models
 class WordStatus(models.TextChoices):
     NEW = "new", "New"
     LEARNING = "learning", "Learning"
-    MASTERED = "mastered", "Mastered"
-    REMOVED = "removed", "Removed"
     REVIEW = "review", "Review"
+    MASTERED = "mastered", "Mastered"
 
 
 class EnglishLevel(models.TextChoices):

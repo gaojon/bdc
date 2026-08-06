@@ -26,9 +26,7 @@ class UserWordStatus(models.Model):
         max_length=16, choices=WordStatus.choices, default=WordStatus.NEW
     )
     occurrence_count = models.IntegerField(default=0)
-    last_reviewed_at = models.DateTimeField(null=True, blank=True)
-    review_interval = models.IntegerField(default=0)
-    next_review_at = models.DateTimeField(null=True, blank=True)
+    mastered_count = models.IntegerField(default=0)
     mastered_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

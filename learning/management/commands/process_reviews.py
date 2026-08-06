@@ -1,19 +1,10 @@
-"""Management command to process due spaced-repetition reviews.
-
-Designed to run daily via cron:
-    0 3 * * * cd /home/opc/bdc && python3.12 manage.py process_reviews
-"""
+"""No longer needed — review is now counter-based (5 × Master → MASTERED)."""
 
 from django.core.management.base import BaseCommand
 
-from learning.services import process_due_reviews
-
 
 class Command(BaseCommand):
-    help = "Move mastered words past their review date into review status."
+    help = "No-op: review processing is now counter-based, not timer-based."
 
     def handle(self, **options):
-        count = process_due_reviews()
-        self.stdout.write(
-            self.style.SUCCESS(f"Moved {count} word(s) to review status.")
-        )
+        self.stdout.write("Review is counter-based. Nothing to do.")

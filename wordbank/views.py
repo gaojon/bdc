@@ -110,8 +110,8 @@ def master_word(request, word_id):
         defaults={"status": WordStatus.LEARNING},
     )
 
-    from learning.services import schedule_review
-    schedule_review(ws)
+    from learning.services import mark_mastered_direct
+    mark_mastered_direct(ws)
 
     messages.success(request, f"Marked as mastered: {word.word}")
     return redirect("wordbank:browse", bank_id=bank_id)

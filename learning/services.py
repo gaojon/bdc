@@ -16,7 +16,7 @@ from learning.models import (
     UserWordStatus,
 )
 from utils.config import get_config
-from utils.constants import SPACED_REPETITION_INTERVALS, WordStatus
+from utils.constants import WordStatus
 from wordbank.models import Word, WordBank, WordBankEntry
 
 logger = logging.getLogger(__name__)
@@ -166,73 +166,39 @@ def _highlight_words_in_text(text: str, words_with_type: list[tuple[str, str]]) 
 
 
 def schedule_review(word_status: UserWordStatus) -> None:
-    """Mark a word as mastered and schedule its first review.
+    """Mark a word from article-end 'Master' button.
 
-    Initial interval: 1 day (D-09).
+    Increments mastered_count.  After 5 successful reviews, becomes MASTERED.
+    Otherwise stays in REVIEW for continued practice.
     """
-    intervals = get_config("spaced_repetition.intervals", SPACED_REPETITION_INTERVALS)
+    word_status.status = WordStatus.REVIEW
+    word_status.mastered_count += 1
+    word_status.mastered_at = timezone.now()
+    word_status.save()
+
+    if word_status.mastered_count >= 5:
+        word_status.status = WordStatus.MASTERED
+        word_status.save(update_fields=["status"])
+
+
+def mark_mastered_direct(word_status: UserWordStatus) -> None:
+    """Mark a word as permanently mastered (from word bank browse page).
+
+    No review required — the user knows this word well.
+    """
     word_status.status = WordStatus.MASTERED
     word_status.mastered_at = timezone.now()
-    word_status.review_interval = intervals[0]
-    word_status.next_review_at = word_status.mastered_at + timezone.timedelta(
-        days=intervals[0]
-    )
+    word_status.mastered_count = 5  # skip review cycle
     word_status.save()
 
 
 def get_mastered_texts(user) -> set:
-    """Return lowercase word texts mastered by user across ALL banks."""
+    """Return lowercase word texts in MASTERED state across ALL banks."""
     return set(
-        UserWordStatus.objects
+        t.lower() for t in UserWordStatus.objects
         .filter(user=user, status=WordStatus.MASTERED)
         .values_list("word__word", flat=True)
     )
-
-
-def advance_review_interval(word_status: UserWordStatus) -> None:
-    """Advance a mastered word to the next review interval.
-
-    Progression: 1 → 3 → 7 → 21 → 60 (caps at 60) (D-09).
-    """
-    intervals = get_config("spaced_repetition.intervals", SPACED_REPETITION_INTERVALS)
-
-    current_interval = word_status.review_interval
-    try:
-        current_idx = intervals.index(current_interval)
-    except ValueError:
-        current_idx = 0
-
-    next_idx = min(current_idx + 1, len(intervals) - 1)
-    next_interval = intervals[next_idx]
-
-    word_status.review_interval = next_interval
-    word_status.next_review_at = timezone.now() + timezone.timedelta(
-        days=next_interval
-    )
-    word_status.last_reviewed_at = timezone.now()
-    word_status.save()
-
-
-def process_due_reviews() -> int:
-    """Find mastered words past their review date and move them to review status.
-
-    Designed to be called daily via cron: python manage.py process_reviews
-
-    Returns the number of words moved to review.
-    """
-    now = timezone.now()
-    due = UserWordStatus.objects.filter(
-        status=WordStatus.MASTERED,
-        next_review_at__lte=now,
-    )
-
-    count = 0
-    for status in due:
-        status.status = WordStatus.REVIEW
-        status.save(update_fields=["status"])
-        count += 1
-
-    return count
 
 
 # ---------------------------------------------------------------------------
@@ -241,27 +207,8 @@ def process_due_reviews() -> int:
 
 
 def mark_word_mastered(word_status: UserWordStatus) -> None:
-    """Mark a single UserWordStatus as mastered."""
+    """Mark a single UserWordStatus via article-end flow (schedule_review)."""
     schedule_review(word_status)
-
-
-def mark_word_learning(word_status: UserWordStatus) -> None:
-    """Restore a word to learning status (undo mastered/removed)."""
-    word_status.status = WordStatus.LEARNING
-    word_status.mastered_at = None
-    word_status.review_interval = 0
-    word_status.next_review_at = None
-    word_status.save()
-
-
-def batch_master_words(word_statuses: list[UserWordStatus]) -> int:
-    """Mark a batch of words as mastered. Returns count mastered."""
-    count = 0
-    for ws in word_statuses:
-        if ws.status != WordStatus.MASTERED:
-            schedule_review(ws)
-            count += 1
-    return count
 
 
 def increment_occurrence(word_ids: list[int], user: User) -> None:

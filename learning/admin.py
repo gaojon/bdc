@@ -20,7 +20,7 @@ class InterestAdmin(admin.ModelAdmin):
 
 @admin.register(UserWordStatus)
 class UserWordStatusAdmin(admin.ModelAdmin):
-    list_display = ("user", "word", "status", "occurrence_count", "review_interval")
+    list_display = ("user", "word", "status", "occurrence_count", "mastered_count")
     list_filter = ("status",)
     search_fields = ("user__username", "word__word")
     readonly_fields = ("created_at", "updated_at")
