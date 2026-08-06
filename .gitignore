@@ -10,3 +10,5 @@ data/extract_doc.py
 data/*.doc
 data/zone.identifier
 *.Zone.Identifier
+.bdc.log
+.bdc.pid
