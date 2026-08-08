@@ -10,6 +10,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 
 from learning.models import (
+    AppSetting,
     Article,
     DailyUsage,
     LearningActivity,
@@ -20,6 +21,57 @@ from utils.constants import WordStatus
 from wordbank.models import Word, WordBank, WordBankEntry
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Global app settings
+# ---------------------------------------------------------------------------
+
+DEFAULT_ACCENT = "uk"
+ACCENT_CHOICES = {"uk", "us"}
+
+
+def get_accent() -> str:
+    """Return the global pronunciation accent ("uk" or "us").
+
+    Falls back to DEFAULT_ACCENT when no AppSetting row exists yet.
+    """
+    setting = AppSetting.objects.filter(key="accent").first()
+    value = setting.value if setting else ""
+    return value if value in ACCENT_CHOICES else DEFAULT_ACCENT
+
+
+def set_accent(value: str) -> str:
+    """Upsert the global accent setting. Invalid values are ignored.
+
+    Returns the stored accent value.
+    """
+    if value not in ACCENT_CHOICES:
+        return get_accent()
+    setting, _ = AppSetting.objects.get_or_create(key="accent")
+    setting.value = value
+    setting.save()
+    return value
+
+
+REVIEW_SHOW_CHINESE_DEFAULT = True
+
+
+def get_review_show_chinese() -> bool:
+    """Whether the review word page shows Chinese definitions by default.
+
+    True = show Chinese (是), False = hide (否). Falls back to showing.
+    """
+    setting = AppSetting.objects.filter(key="review_show_chinese").first()
+    return setting.value != "no" if setting else REVIEW_SHOW_CHINESE_DEFAULT
+
+
+def set_review_show_chinese(value: bool) -> bool:
+    """Persist the last review page choice as the default for next time."""
+    setting, _ = AppSetting.objects.get_or_create(key="review_show_chinese")
+    setting.value = "yes" if value else "no"
+    setting.save()
+    return bool(value)
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +244,17 @@ def mark_mastered_direct(word_status: UserWordStatus) -> None:
     word_status.save()
 
 
+def unmaster_word(word_status: UserWordStatus) -> None:
+    """Move a mastered word back to learning (from word bank browse page).
+
+    Clears the mastery counters so the word re-enters the normal learning flow.
+    """
+    word_status.status = WordStatus.LEARNING
+    word_status.mastered_count = 0
+    word_status.mastered_at = None
+    word_status.save(update_fields=["status", "mastered_count", "mastered_at"])
+
+
 def get_mastered_texts(user) -> set:
     """Return lowercase word texts in MASTERED state across ALL banks."""
     return set(
@@ -235,6 +298,19 @@ def increment_occurrence(word_ids: list[int], user: User) -> None:
         user=user,
         word_id__in=word_ids,
     ).update(occurrence_count=models.F("occurrence_count") + 1)
+
+
+def clear_non_mastered_on_bank_switch(user: User) -> int:
+    """Reset transient word tracking when the user switches word banks.
+
+    Keeps MASTERED words (a permanent achievement) but deletes the
+    learning/review/new records so the new bank starts with a clean slate.
+    Returns the number of records deleted.
+    """
+    deleted, _ = UserWordStatus.objects.filter(
+        user=user,
+    ).exclude(status=WordStatus.MASTERED).delete()
+    return deleted
 
 
 # Need models import for update query

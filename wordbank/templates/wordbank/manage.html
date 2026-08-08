@@ -19,7 +19,7 @@
     {% for bank in word_banks %}
     <article>
         <h3>{{ bank.name }}</h3>
-        <p><strong>{{ bank.words.count }}</strong> words</p>
+        <p><strong>{{ bank.word_count }}</strong> words</p>
         <p><small>Created: {{ bank.created_at|date:"Y-m-d" }}</small></p>
         <div class="grid">
             <a href="{% url 'wordbank:browse' bank.id %}" role="button">Browse & Edit</a>

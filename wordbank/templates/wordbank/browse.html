@@ -6,10 +6,13 @@
 <h1>{{ word_bank.name }}</h1>
 <p><strong>{{ total }}</strong> words | <a href="{% url 'wordbank:manage' %}">← Back to Word Banks</a></p>
 
-<!-- Quick-jump alphabet -->
+<!-- Alphabet quick-jump: one letter is rendered per page load -->
 <nav style="position:sticky;top:0;z-index:10;background:var(--pico-background-color);padding:0.5em 0;border-bottom:1px solid var(--pico-muted-border-color);margin-bottom:1em;">
-    {% for letter in letters %}
-    <a href="#letter-{{ letter }}" style="display:inline-block;min-width:1.8em;text-align:center;font-weight:bold;padding:2px 4px;margin:0 1px;">{{ letter }}</a>
+    {% for l in letters %}
+    <a href="?letter={{ l }}"
+       {% if l == letter %}style="display:inline-block;min-width:1.8em;text-align:center;font-weight:bold;padding:2px 4px;margin:0 1px;background:var(--pico-primary);color:#fff;border-radius:4px;"
+       {% else %}style="display:inline-block;min-width:1.8em;text-align:center;font-weight:bold;padding:2px 4px;margin:0 1px;"
+       {% endif %}>{{ l }}</a>
     {% endfor %}
 </nav>
 
@@ -21,7 +24,7 @@
     <form method="post" action="{% url 'wordbank:import_csv' word_bank.id %}" enctype="multipart/form-data" style="margin-top: 1em;">
         {% csrf_token %}
         <label>
-            CSV File (Comma-separated: "word","pronounce","definition")
+            CSV File (Comma-separated: "word","pronounce_us","definition")
             <input type="file" name="csv_file" accept=".csv,.tsv,.txt" required>
         </label>
         <button type="submit">Import</button>
@@ -36,10 +39,10 @@
 
 <hr>
 
-<!-- Grouped word list -->
-{% if grouped %}
-{% for letter, entries in grouped.items %}
-<h2 id="letter-{{ letter }}" style="border-bottom:2px solid var(--pico-primary);padding-bottom:0.25em;margin-top:1.5em;">{{ letter }}</h2>
+<!-- Current letter's words -->
+{% if letter %}
+<h2 style="border-bottom:2px solid var(--pico-primary);padding-bottom:0.25em;margin-top:1.5em;">{{ letter }}</h2>
+{% if entries %}
 <table>
     <thead>
         <tr>
@@ -69,12 +72,19 @@
                 <button type="button"
                         onclick="editWord({{ entry.id }})"
                         style="margin:0; padding:2px 8px; font-size:0.8rem;">Edit</button>
-                {% if not entry.is_mastered %}
+                {% if entry.is_mastered %}
+                <form method="post" action="{% url 'wordbank:unmaster_word' entry.id %}"
+                      style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit"
+                            style="margin:0; padding:2px 8px; font-size:0.8rem; background:#d97706; border-color:#d97706; color:#fff;">Learning</button>
+                </form>
+                {% else %}
                 <form method="post" action="{% url 'wordbank:master_word' entry.id %}"
                       style="display:inline;">
                     {% csrf_token %}
                     <button type="submit"
-                            style="margin:0; padding:2px 8px; font-size:0.8rem; background:#059669; border-color:#059669; color:#fff;">Master</button>
+                            style="margin:0; padding:2px 8px; font-size:0.8rem; background:#059669; border-color:#059669; color:#fff;">Mastered</button>
                 </form>
                 {% endif %}
             </td>
@@ -82,7 +92,9 @@
         {% endfor %}
     </tbody>
 </table>
-{% endfor %}
+{% else %}
+<p>No words starting with "{{ letter }}".</p>
+{% endif %}
 {% else %}
 <p>No words in this bank. Import a CSV to get started.</p>
 {% endif %}
@@ -115,10 +127,8 @@
 
 <script>
 const wordData = {
-    {% for letter, entries in grouped.items %}
     {% for entry in entries %}
     {{ entry.id }}: {word:"{{ entry.word|escapejs }}", def:"{{ entry.definition|escapejs }}", phrase:{{ entry.is_phrase|yesno:"true,false"}} },
-    {% endfor %}
     {% endfor %}
 };
 

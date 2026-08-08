@@ -8,6 +8,8 @@ app_name = "learning"
 
 urlpatterns = [
     path("", views.index, name="index"),
+    path("accent/set/", views.set_accent, name="set_accent"),
+    path("review/show-chinese/set/", views.set_review_show_chinese, name="set_review_show_chinese"),
     path("generate/", views.generate_article, name="generate"),
     path("article/<int:article_id>/", views.article, name="article"),
     path(

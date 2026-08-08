@@ -12,3 +12,4 @@ data/zone.identifier
 *.Zone.Identifier
 .bdc.log
 .bdc.pid
+backups/

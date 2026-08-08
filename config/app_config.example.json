@@ -6,7 +6,7 @@
     "timeout_seconds": 120
   },
   "article": {
-    "target_word_count": 500,
+    "target_word_count": 350,
     "min_hit_words": 25,
     "max_hit_words": 50,
     "max_word_pool_size": 500

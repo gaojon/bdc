@@ -15,5 +15,6 @@ urlpatterns = [
     path("<int:bank_id>/delete/", views.delete_bank, name="delete_bank"),
     path("word/<int:word_id>/edit/", views.edit_word, name="edit_word"),
     path("word/<int:word_id>/master/", views.master_word, name="master_word"),
+    path("word/<int:word_id>/unmaster/", views.unmaster_word, name="unmaster_word"),
     path("word/<int:word_id>/delete/", views.delete_word, name="delete_word"),
 ]

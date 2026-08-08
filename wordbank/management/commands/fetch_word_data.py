@@ -43,11 +43,11 @@ def fetch_word(word_text: str, timeout: int = 8) -> dict | None:
 def parse_api_response(data: list) -> dict:
     """Extract fields from API response into a flat dict.
 
-    Returns dict with keys: pronounce, english_definition, examples,
+    Returns dict with keys: pronounce_us, english_definition, examples,
     synonyms, antonyms.  All values are strings.
     """
     result = {
-        "pronounce": "",
+        "pronounce_us": "",
         "english_definition": "",
         "examples": "",
         "synonyms": "",
@@ -63,10 +63,10 @@ def parse_api_response(data: list) -> dict:
     # Prefer the first phonetics entry with a text field
     for ph in entry.get("phonetics", []):
         if ph.get("text"):
-            result["pronounce"] = ph["text"].strip("/")
+            result["pronounce_us"] = ph["text"].strip("/")
             break
-    if not result["pronounce"] and entry.get("phonetic"):
-        result["pronounce"] = entry["phonetic"].strip("/")
+    if not result["pronounce_us"] and entry.get("phonetic"):
+        result["pronounce_us"] = entry["phonetic"].strip("/")
 
     # --- Meanings ---
     def_lines = []
@@ -128,7 +128,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--force",
             action="store_true",
-            help="Re-fetch even for words that already have pronounce.",
+            help="Re-fetch even for words that already have pronounce_us.",
         )
 
     def handle(self, *args, **options):
@@ -143,7 +143,7 @@ class Command(BaseCommand):
                 bank_entries__word_bank__name=bank_name
             ).distinct()
         if not force:
-            queryset = queryset.filter(pronounce="")
+            queryset = queryset.filter(pronounce_us="")
 
         word_list = list(queryset)
         total = len(word_list)
@@ -168,18 +168,18 @@ class Command(BaseCommand):
             if parsed:
                 with lock:
                     stats["found"] += 1
-                if parsed["pronounce"]:
-                    self.stdout.write(f"  [{idx}/{total}] {word.word} /{parsed['pronounce']}/")
+                if parsed["pronounce_us"]:
+                    self.stdout.write(f"  [{idx}/{total}] {word.word} /{parsed['pronounce_us']}/")
                 else:
                     self.stdout.write(f"  [{idx}/{total}] {word.word} (no phonetic)")
                 if not dry_run:
-                    word.pronounce = parsed["pronounce"]
+                    word.pronounce_us = parsed["pronounce_us"]
                     word.english_definition = parsed["english_definition"]
                     word.examples = parsed["examples"]
                     word.synonyms = parsed["synonyms"]
                     word.antonyms = parsed["antonyms"]
                     word.save(update_fields=[
-                        "pronounce", "english_definition", "examples",
+                        "pronounce_us", "english_definition", "examples",
                         "synonyms", "antonyms",
                     ])
             else:

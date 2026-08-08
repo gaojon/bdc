@@ -21,6 +21,18 @@
         </ul>
         <ul>
             {% if user.is_authenticated %}
+            <li>
+                <form method="post" action="{% url 'learning:set_accent' %}" style="display:inline-flex;gap:0.25em;margin:0;">
+                    {% csrf_token %}
+                    {% for val, label in accent_options %}
+                    <button type="submit" name="accent" value="{{ val }}"
+                            style="margin:0;padding:0 0.6em;font-size:0.8rem;
+                                   {% if accent == val %}background:var(--pico-primary);border-color:var(--pico-primary);color:#fff;{% endif %}">
+                        {{ label }}
+                    </button>
+                    {% endfor %}
+                </form>
+            </li>
             <li>{{ user.username }}</li>
             <li><a href="{% url 'accounts:profile' %}">Profile</a></li>
             <li><a href="{% url 'accounts:logout' %}">Logout</a></li>

@@ -19,6 +19,31 @@ TIMEOUT=120
 cd "$PROJECT_DIR"
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# Return 0 (true) if something is listening on the given TCP port.
+_port_in_use() {
+    local port="$1"
+    ss -tln 2>/dev/null | grep -q ":$port "
+}
+
+# Kill every PID currently holding the given port (returns non-zero if none).
+_kill_port_holder() {
+    local port="$1"
+    local pids
+    pids=$(ss -tlnp 2>/dev/null | grep ":$port " | grep -oP 'pid=\K[0-9]+' | sort -u)
+    if [ -z "$pids" ]; then
+        return 1
+    fi
+    for p in $pids; do
+        kill -9 "$p" 2>/dev/null || true
+    done
+    sleep 1
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # start - Launch gunicorn in daemon mode
 # ---------------------------------------------------------------------------
 start() {
@@ -67,11 +92,17 @@ stop() {
     fi
 
     echo "Stopping BDC (PID: $PID)..."
-    kill "$PID"
+    # gunicorn --daemon calls setsid(), so the master is its own process-group
+    # leader. Send SIGTERM to the whole group (negative PID) so workers shut
+    # down with the master instead of being orphaned and holding the port.
+    kill -- -"$PID" 2>/dev/null || kill "$PID"
 
-    # Wait up to 10 seconds for graceful shutdown
+    # Wait up to 10 seconds for graceful shutdown. Key: the master exiting is
+    # NOT enough — the worker is a separate process and may take a moment to
+    # finish in-flight requests while still holding the port. So poll until the
+    # port is actually free before declaring success.
     for i in {1..10}; do
-        if ! kill -0 "$PID" 2>/dev/null; then
+        if ! _port_in_use 8000; then
             echo "BDC stopped."
             rm -f "$PID_FILE"
             return 0
@@ -79,9 +110,9 @@ stop() {
         sleep 1
     done
 
-    # Force kill if graceful shutdown times out
-    echo "Graceful shutdown timed out, force killing..."
-    kill -9 "$PID" 2>/dev/null || true
+    # Force kill whatever still holds the port (orphaned worker etc.)
+    echo "Port 8000 still in use after graceful stop, force killing..."
+    _kill_port_holder 8000 || true
     rm -f "$PID_FILE"
     echo "BDC force stopped."
 }

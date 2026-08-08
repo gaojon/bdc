@@ -44,7 +44,7 @@ def build_combined_prompt(
     interests: list[str],
     word_list: list[str],
     complexity: int,
-    word_count: int = 500,
+    word_count: int = 350,
 ) -> tuple[str, str]:
     """Build system and user prompts for article + quiz generation in one call.
 
@@ -192,7 +192,7 @@ def generate_article(
         None on any failure.
     """
     if word_count is None:
-        word_count = get_config("article.target_word_count", 500)
+        word_count = get_config("article.target_word_count", 350)
 
     model = get_config("deepseek.model", "deepseek-v4-flash")
     sys_prompt, user_prompt = build_combined_prompt(

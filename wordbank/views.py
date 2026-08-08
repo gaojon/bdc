@@ -8,7 +8,8 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from django.db.models.functions import Lower
+from django.db.models import Count
+from django.db.models.functions import Lower, Substr
 
 from learning.models import UserWordStatus
 from learning.services import get_mastered_texts
@@ -19,45 +20,65 @@ from wordbank.services import import_csv_to_bank
 
 @login_required
 def manage(request):
-    """Main word bank management page: list all banks."""
-    word_banks = WordBank.objects.all()
+    """Main word bank management page: list all banks with word counts."""
+    word_banks = WordBank.objects.annotate(word_count=Count("entries"))
     context = {"word_banks": word_banks}
     return render(request, "wordbank/manage.html", context)
 
 
 @login_required
 def browse(request, bank_id):
-    """Browse and edit words within a specific word bank."""
+    """Browse and edit words within a specific word bank.
+
+    Only one letter's words are rendered per request so large banks load fast;
+    the alphabet bar switches letters via ?letter=.
+    """
     word_bank = get_object_or_404(WordBank, id=bank_id)
-    words = Word.objects.filter(
-        bank_entries__word_bank=word_bank
-    ).order_by(Lower("word"))
+    words_qs = Word.objects.filter(bank_entries__word_bank=word_bank)
 
-    bank_word_ids = list(words.values_list("id", flat=True))
+    # Distinct first letters without loading the whole bank (cheap query)
+    raw_letters = (
+        words_qs.annotate(letter=Substr(Lower("word"), 1, 1))
+        .values_list("letter", flat=True)
+        .distinct()
+    )
+    letters = sorted({l.upper() for l in raw_letters if l})
+    # Empty-word edge case (normally skipped at import): group under "#"
+    if words_qs.filter(word="").exists() and "#" not in letters:
+        letters.append("#")
 
-    # Get learning status for this user for all words in the bank
+    # Show one letter at a time; default to the first available letter so the
+    # page never renders the entire bank.
+    letter = (request.GET.get("letter") or "").upper()
+    if letter not in letters:
+        letter = letters[0] if letters else ""
+
+    if letter == "#":
+        letter_words = words_qs.filter(word="")
+    elif letter:
+        letter_words = words_qs.filter(word__istartswith=letter)
+    else:
+        letter_words = words_qs.none()
+
+    words = list(letter_words.order_by(Lower("word")))
+
+    # Get learning status for this user for the current letter's words
     user_statuses = {
         ws.word_id: ws.status
         for ws in UserWordStatus.objects.filter(
             user=request.user,
-            word_id__in=bank_word_ids,
+            word_id__in=[w.id for w in words],
         )
     }
 
-    # Annotate each word with its status, grouped by first letter
-    from collections import OrderedDict
-
     mastered_texts = get_mastered_texts(request.user)
 
-    grouped = OrderedDict()
+    entries = []
     for w in words:
         status = user_statuses.get(w.id, "new")
         # Cross-bank: word is mastered if its text is mastered in any bank
         is_mastered = w.word.lower() in mastered_texts or status == WordStatus.MASTERED
-        key = w.word[0].upper() if w.word else "#"
-        if key not in grouped:
-            grouped[key] = []
-        grouped[key].append({
+        entries.append({
             "id": w.id,
             "word": w.word,
             "part_of_speech": w.part_of_speech,
@@ -69,9 +90,10 @@ def browse(request, bank_id):
 
     context = {
         "word_bank": word_bank,
-        "grouped": grouped,
-        "letters": list(grouped.keys()),
-        "total": sum(len(v) for v in grouped.values()),
+        "letters": letters,
+        "letter": letter,
+        "entries": entries,
+        "total": words_qs.count(),
     }
     return render(request, "wordbank/browse.html", context)
 
@@ -95,6 +117,22 @@ def edit_word(request, word_id):
     return redirect("wordbank:browse", bank_id=word.word_bank_id)
 
 
+def _word_browse_redirect(request, word):
+    """Return to the word bank browse page the user came from.
+
+    A Word is shared across banks (via WordBankEntry), so redirect back to the
+    referer when it points at a browse page; otherwise fall back to the word's
+    first bank.
+    """
+    referer = request.META.get("HTTP_REFERER", "")
+    if "/bank/" in referer:
+        return redirect(referer)
+    bank_id = WordBankEntry.objects.filter(word=word).values_list(
+        "word_bank_id", flat=True
+    ).first()
+    return redirect("wordbank:browse", bank_id=bank_id or 0)
+
+
 @login_required
 def master_word(request, word_id):
     """Mark a word as mastered directly from the word bank (POST only)."""
@@ -102,7 +140,6 @@ def master_word(request, word_id):
         return redirect("wordbank:manage")
 
     word = get_object_or_404(Word, id=word_id)
-    bank_id = word.word_bank_id
 
     ws, _ = UserWordStatus.objects.get_or_create(
         user=request.user,
@@ -114,7 +151,24 @@ def master_word(request, word_id):
     mark_mastered_direct(ws)
 
     messages.success(request, f"Marked as mastered: {word.word}")
-    return redirect("wordbank:browse", bank_id=bank_id)
+    return _word_browse_redirect(request, word)
+
+
+@login_required
+def unmaster_word(request, word_id):
+    """Move a mastered word back to learning (POST only)."""
+    if request.method != "POST":
+        return redirect("wordbank:manage")
+
+    word = get_object_or_404(Word, id=word_id)
+
+    ws = UserWordStatus.objects.filter(user=request.user, word=word).first()
+    if ws is not None:
+        from learning.services import unmaster_word as _unmaster
+        _unmaster(ws)
+
+    messages.success(request, f"Back to learning: {word.word}")
+    return _word_browse_redirect(request, word)
 
 
 @login_required
@@ -188,7 +242,7 @@ def export_csv(request, bank_id):
 
     writer = csv.writer(response, delimiter=",", quoting=csv.QUOTE_ALL)
     for word in words:
-        writer.writerow([word.word, word.pronounce, word.definition])
+        writer.writerow([word.word, word.pronounce_us or word.pronounce_uk or "", word.definition])
 
     return response
 

@@ -16,7 +16,6 @@ class Word(models.Model):
     """Shared word entry — one row per unique word text across all banks."""
 
     word = models.CharField(max_length=255, unique=True)
-    pronounce = models.CharField(max_length=255, blank=True, default="")
     pronounce_us = models.CharField(max_length=255, blank=True, default="")
     pronounce_uk = models.CharField(max_length=255, blank=True, default="")
     part_of_speech = models.CharField(max_length=64)

@@ -109,3 +109,13 @@ class LearningActivity(models.Model):
 
     def __str__(self):
         return f"{self.user.username} / {self.date}: a={self.articles_read} q={self.quizzes_completed} w={self.words_mastered}"
+
+
+class AppSetting(models.Model):
+    """Global app-wide key-value settings shared by all users (e.g. accent)."""
+
+    key = models.CharField(max_length=64, unique=True)
+    value = models.CharField(max_length=255, default="")
+
+    def __str__(self):
+        return f"{self.key} = {self.value}"

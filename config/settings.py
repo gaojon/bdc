@@ -4,9 +4,12 @@ Django settings for the English Word Learning System.
 See RD.md and AD.md for architecture decisions.
 
 Environment variables:
-    DJANGO_DEBUG          "true"/"1" → DEBUG=True (default: True)
-    DJANGO_SECRET_KEY     override the default SECRET_KEY
+    DJANGO_DEBUG          "true"/"1" → DEBUG=True (default: True; MUST be "false" in production)
+    DJANGO_SECRET_KEY     REQUIRED in production; startup is refused without it
     DJANGO_ALLOWED_HOSTS  comma-separated list (default: "*")
+    DJANGO_BEHIND_PROXY   "1" when gunicorn sits behind a TLS-terminating reverse
+                          proxy (nginx/caddy); lets Django trust X-Forwarded-Proto
+                          so Secure cookies and https redirects work
 """
 
 import os
@@ -18,12 +21,30 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Security
 # ---------------------------------------------------------------------------
 
-SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-CHANGE-ME-in-production-please",
-)
-
 DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() in ("1", "true", "yes")
+
+
+def _load_secret_key() -> str:
+    """Production requires an explicit DJANGO_SECRET_KEY; refuse to start with
+    the old hardcoded default (that string is public in Django docs/GitHub and
+    would let anyone forge CSRF tokens / password-reset links).
+
+    In dev (DEBUG=True) a fixed, clearly-marked dev key is used so sessions and
+    CSRF tokens survive restarts. Never deploy with DEBUG=True.
+    """
+    key = os.environ.get("DJANGO_SECRET_KEY")
+    if key:
+        return key
+    if not DEBUG:
+        raise RuntimeError(
+            "DJANGO_SECRET_KEY is not set. Refusing to start in production.\n"
+            "Generate one with: python -c \"from django.core.management.utils "
+            "import get_random_secret_key; print(get_random_secret_key())\""
+        )
+    return "dev-only-insecure-key-never-use-in-production"
+
+
+SECRET_KEY = _load_secret_key()
 
 ALLOWED_HOSTS = [
     h.strip()
@@ -72,6 +93,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "config.context_processors.version_info",
+                "config.context_processors.accent_info",
             ],
         },
     },
@@ -127,11 +149,21 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # ---------------------------------------------------------------------------
 
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = False  # HTTP on intranet; set True if behind TLS
+# In production (DEBUG=False) the app is expected to sit behind TLS; cookies are
+# marked Secure so they are never transmitted over plain HTTP. In dev
+# (DEBUG=True, http://localhost) the Secure flag is off so local testing works.
+SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_HTTPONLY = True
-CSRF_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = not DEBUG
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+# When running behind a TLS-terminating reverse proxy (nginx/caddy), Django must
+# trust X-Forwarded-Proto to mark cookies Secure and emit https:// URLs.
+# Enable ONLY when that proxy is actually in front (set DJANGO_BEHIND_PROXY=1);
+# leaving it on without a proxy would let clients spoof the header.
+if os.environ.get("DJANGO_BEHIND_PROXY") in ("1", "true", "yes"):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

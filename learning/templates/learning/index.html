@@ -45,10 +45,10 @@
             <label>
                 Article Length: <strong id="length-value">{{ article_length }}</strong> words
                 <input type="range" name="article_length"
-                       min="200" max="800" step="50"
+                       min="100" max="600" step="50"
                        value="{{ article_length }}"
                        oninput="document.getElementById('length-value').textContent = this.value">
-                <small>200 = short, 500 = medium, 800 = long</small>
+                <small>100 = very short, 350 = medium, 600 = long</small>
             </label>
 
             <button type="submit" {% if not can_generate %}disabled{% endif %}>

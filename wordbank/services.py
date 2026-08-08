@@ -13,7 +13,7 @@ def parse_csv(file_obj, delimiter: str = ",") -> list[dict]:
     """Parse a CSV file and return a list of word data dicts.
 
     Supports two formats:
-    - New: word, pronounce, definition (POS embedded in def, e.g. "vt. 放弃 n. 摘要")
+    - New: word, pronounce_us, definition (POS embedded in def, e.g. "vt. 放弃 n. 摘要")
     - Old: word, part_of_speech, definition (POS in separate column)
 
     Args:
@@ -56,13 +56,13 @@ def parse_csv(file_obj, delimiter: str = ",") -> list[dict]:
             pos = _extract_pos_from_def(col3)
             definition = col3
 
-        pronounce = col2 if not (col2_clean and all(p in known_pos for p in col2_clean)) else ""
+        pronounce_us = col2 if not (col2_clean and all(p in known_pos for p in col2_clean)) else ""
 
         is_phrase = " " in word_text
 
         words.append({
             "word": word_text,
-            "pronounce": pronounce,
+            "pronounce_us": pronounce_us,
             "part_of_speech": pos,
             "definition": definition,
             "is_phrase": is_phrase,
@@ -121,7 +121,7 @@ def import_words(
             word, word_created = Word.objects.get_or_create(
                 word=word_text,
                 defaults={
-                    "pronounce": entry.get("pronounce", ""),
+                    "pronounce_us": entry.get("pronounce_us", ""),
                     "part_of_speech": entry.get("part_of_speech", ""),
                     "definition": entry.get("definition", ""),
                     "is_phrase": entry.get("is_phrase", False),

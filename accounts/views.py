@@ -49,7 +49,7 @@ def profile_view(request):
             profile.daily_word_goal = int(goal)
         article_len = request.POST.get("article_length")
         if article_len and article_len.isdigit():
-            profile.article_length = max(200, min(800, int(article_len)))
+            profile.article_length = max(100, min(600, int(article_len)))
         profile.save()
         messages.success(request, "Profile updated.")
         return redirect("accounts:profile")

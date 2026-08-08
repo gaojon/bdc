@@ -6,6 +6,23 @@
 <h1>Review Words</h1>
 <p>From: <em>{{ article.title }}</em></p>
 
+<div style="margin-bottom: 1em;">
+    <span style="margin-right:0.5em;">显示中文解释：</span>
+    <form method="post" action="{% url 'learning:set_review_show_chinese' %}" style="display:inline-flex;gap:0.25em;margin:0;">
+        {% csrf_token %}
+        <button type="submit" name="show_chinese" value="yes"
+                style="margin:0;padding:0 0.6em;font-size:0.8rem;
+                       {% if show_chinese %}background:var(--pico-primary);border-color:var(--pico-primary);color:#fff;{% endif %}">
+            是
+        </button>
+        <button type="submit" name="show_chinese" value="no"
+                style="margin:0;padding:0 0.6em;font-size:0.8rem;
+                       {% if not show_chinese %}background:var(--pico-primary);border-color:var(--pico-primary);color:#fff;{% endif %}">
+            否
+        </button>
+    </form>
+</div>
+
 <form method="post" action="{% url 'learning:save_word_decisions' article.id %}">
     {% csrf_token %}
 
@@ -19,14 +36,18 @@
             <input type="checkbox" name="master_word_ids" value="{{ item.word.id }}"
                    {% if item.is_already_mastered %}disabled{% endif %}>
             <strong style="font-size:1.2em;">{{ item.word.word }}</strong>
-            {% if item.word.pronounce_us %}
-            <small style="color:var(--pico-muted-color);">US /{{ item.word.pronounce_us }}/</small>
-            {% endif %}
-            {% if item.word.pronounce_uk %}
-            <small style="color:var(--pico-muted-color);">UK /{{ item.word.pronounce_uk }}/</small>
-            {% endif %}
-            {% if not item.word.pronounce_us and not item.word.pronounce_uk and item.word.pronounce %}
-            <small style="color:var(--pico-muted-color);">/{{ item.word.pronounce }}/</small>
+            {% if accent == "uk" %}
+                {% if item.word.pronounce_uk %}
+                <small style="color:var(--pico-muted-color);">UK /{{ item.word.pronounce_uk }}/</small>
+                {% elif item.word.pronounce_us %}
+                <small style="color:var(--pico-muted-color);">US /{{ item.word.pronounce_us }}/</small>
+                {% endif %}
+            {% else %}
+                {% if item.word.pronounce_us %}
+                <small style="color:var(--pico-muted-color);">US /{{ item.word.pronounce_us }}/</small>
+                {% elif item.word.pronounce_uk %}
+                <small style="color:var(--pico-muted-color);">UK /{{ item.word.pronounce_uk }}/</small>
+                {% endif %}
             {% endif %}
             {% if item.is_already_mastered %}
             <mark>Mastered</mark>
@@ -35,7 +56,7 @@
             {% endif %}
         </div>
 
-        {% if item.word.definition %}
+        {% if show_chinese and item.word.definition %}
         <p style="margin:0.2em 0 0.4em 1.8em;">{{ item.word.definition }}</p>
         {% endif %}
 

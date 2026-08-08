@@ -16,3 +16,13 @@ def version_info(request):
                 "BUILD_TIME": info.get("build_time", "")}
     except (FileNotFoundError, json.JSONDecodeError):
         return {"VERSION": "dev", "BUILD_TIME": ""}
+
+
+def accent_info(request):
+    """Add the global pronunciation accent ("uk"/"us") to all template contexts."""
+    from learning.services import get_accent
+
+    return {
+        "accent": get_accent(),
+        "accent_options": [("uk", "英式"), ("us", "美式")],
+    }

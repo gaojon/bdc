@@ -30,7 +30,7 @@ class Profile(models.Model):
     sentence_complexity = models.IntegerField(default=5)
     daily_word_goal = models.IntegerField(default=10)
     selected_word_bank_id = models.IntegerField(null=True, blank=True)
-    article_length = models.IntegerField(default=500)  # 200–800
+    article_length = models.IntegerField(default=350)  # 100–600
     daily_limit = models.IntegerField(default=-1)  # -1 means use global config
 
     @property

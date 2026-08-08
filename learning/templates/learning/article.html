@@ -13,17 +13,18 @@
     <summary>Review Words in this article ({{ hit_words|length }})</summary>
     <table>
         <thead>
-            <tr><th>Word</th><th>US / UK</th><th>Definition</th></tr>
+            <tr><th>Word</th><th>{{ accent|upper }}</th><th>Definition</th></tr>
         </thead>
         <tbody>
             {% for word in hit_words %}
             <tr>
                 <td><strong>{{ word.word }}</strong></td>
                 <td>
-                    {% if word.pronounce_us %}US /{{ word.pronounce_us }}/{% endif %}
-                    {% if word.pronounce_us and word.pronounce_uk %}<br>{% endif %}
-                    {% if word.pronounce_uk %}UK /{{ word.pronounce_uk }}/{% endif %}
-                    {% if not word.pronounce_us and not word.pronounce_uk and word.pronounce %}/{{ word.pronounce }}/{% endif %}
+                    {% if accent == "uk" %}
+                        {% if word.pronounce_uk %}UK /{{ word.pronounce_uk }}/{% elif word.pronounce_us %}US /{{ word.pronounce_us }}/{% endif %}
+                    {% else %}
+                        {% if word.pronounce_us %}US /{{ word.pronounce_us }}/{% elif word.pronounce_uk %}UK /{{ word.pronounce_uk }}/{% endif %}
+                    {% endif %}
                 </td>
                 <td>{{ word.definition }}</td>
             </tr>

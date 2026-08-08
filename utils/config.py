@@ -29,7 +29,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "timeout_seconds": 120,
     },
     "article": {
-        "target_word_count": 500,
+        "target_word_count": 350,
         "min_hit_words": 25,
         "max_hit_words": 50,
         "max_word_pool_size": 50,
@@ -73,7 +73,7 @@ def get_config(key: str, default: Any = None) -> Any:
     """Retrieve a nested config value via dot-delimited key.
 
     Example:
-        get_config("article.target_word_count")  # -> 500
+        get_config("article.target_word_count")  # -> 350
         get_config("limits.daily_generation_limit", default=3)
     """
     cfg = load_config()

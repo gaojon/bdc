@@ -99,6 +99,22 @@ def index(request):
 
 
 # ---------------------------------------------------------------------------
+# Global settings
+# ---------------------------------------------------------------------------
+
+
+@login_required
+def set_accent(request):
+    """Set the global pronunciation accent (uk/us) for all users.
+
+    Only accepts POST. Redirects back to the referring page.
+    """
+    if request.method == "POST":
+        services.set_accent(request.POST.get("accent", ""))
+    return redirect(request.META.get("HTTP_REFERER") or "learning:index")
+
+
+# ---------------------------------------------------------------------------
 # Article generation
 # ---------------------------------------------------------------------------
 
@@ -119,7 +135,9 @@ def generate_article(request):
     word_bank_id = request.POST.get("word_bank_id")
     interest_ids = request.POST.getlist("interest_ids")
     complexity_str = request.POST.get("sentence_complexity", "5")
-    article_length_str = request.POST.get("article_length", "500")
+    # Default article length is driven by config (article.target_word_count)
+    default_length = get_config("article.target_word_count", 350)
+    article_length_str = request.POST.get("article_length", str(default_length))
 
     try:
         complexity = int(complexity_str)
@@ -129,15 +147,24 @@ def generate_article(request):
 
     try:
         article_length = int(article_length_str)
-        article_length = max(200, min(800, article_length))
+        article_length = max(100, min(600, article_length))
     except ValueError:
-        article_length = 500
+        article_length = default_length
 
     word_bank = get_object_or_404(WordBank, id=word_bank_id)
     interests = Interest.objects.filter(id__in=interest_ids) if interest_ids else []
 
     # Remember the selected word bank for next time
     profile = request.user.profile
+    if profile.selected_word_bank_id != word_bank.id:
+        # Word-bank switch: keep mastered words, clear learning/review/new
+        # tracking so the new bank starts with a clean slate.
+        cleared = services.clear_non_mastered_on_bank_switch(request.user)
+        messages.info(
+            request,
+            f"Word bank switched to “{word_bank.name}”. "
+            f"Cleared {cleared} learning/review/new record(s); mastered words kept.",
+        )
     profile.selected_word_bank_id = word_bank.id
     profile.save(update_fields=["selected_word_bank_id"])
 
@@ -327,8 +354,20 @@ def word_review(request, article_id):
     context = {
         "article": article,
         "word_info": word_info,
+        "show_chinese": services.get_review_show_chinese(),
     }
     return render(request, "learning/word_review.html", context)
+
+
+@login_required
+def set_review_show_chinese(request):
+    """Set whether the review page shows Chinese definitions (whole-page default)."""
+    if request.method != "POST":
+        return redirect("learning:index")
+
+    value = request.POST.get("show_chinese")
+    services.set_review_show_chinese(value == "yes")
+    return redirect(request.META.get("HTTP_REFERER") or "learning:index")
 
 
 @login_required
