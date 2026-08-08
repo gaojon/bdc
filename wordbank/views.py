@@ -20,9 +20,40 @@ from wordbank.services import import_csv_to_bank
 
 @login_required
 def manage(request):
-    """Main word bank management page: list all banks with word counts."""
-    word_banks = WordBank.objects.annotate(word_count=Count("entries"))
-    context = {"word_banks": word_banks}
+    """Main word bank management page: list all banks with word counts.
+
+    For the user's currently selected bank, also shows a single set of
+    per-user learning stats: reviewing / learning / mastered counts.
+    """
+    word_banks = list(WordBank.objects.annotate(word_count=Count("entries")))
+
+    selected_bank_id = request.user.profile.selected_word_bank_id
+    if selected_bank_id:
+        # Pin the selected bank to the leftmost position.
+        word_banks.sort(key=lambda b: b.id != selected_bank_id)
+
+    selected_stats = None
+    if selected_bank_id:
+        status_rows = (
+            UserWordStatus.objects.filter(
+                user=request.user,
+                word__bank_entries__word_bank_id=selected_bank_id,
+            )
+            .values("status")
+            .annotate(n=Count("id"))
+        )
+        by_status = {row["status"]: row["n"] for row in status_rows}
+        selected_stats = {
+            "reviewing": by_status.get(WordStatus.REVIEW, 0),
+            "learning": by_status.get(WordStatus.LEARNING, 0),
+            "mastered": by_status.get(WordStatus.MASTERED, 0),
+        }
+
+    context = {
+        "word_banks": word_banks,
+        "selected_bank_id": selected_bank_id,
+        "selected_stats": selected_stats,
+    }
     return render(request, "wordbank/manage.html", context)
 
 
@@ -249,7 +280,10 @@ def export_csv(request, bank_id):
 
 @login_required
 def create_bank(request):
-    """Create a new word bank (POST only)."""
+    """Create a new word bank (superuser only, POST only)."""
+    if not request.user.is_superuser:
+        messages.error(request, "Access denied.")
+        return redirect("wordbank:manage")
     if request.method == "POST":
         name = request.POST.get("name", "").strip()
         if name:

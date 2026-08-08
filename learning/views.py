@@ -9,6 +9,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import models
+from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 
 from learning import ai, services
@@ -536,17 +537,76 @@ def article_detail(request, article_id):
 # ---------------------------------------------------------------------------
 
 
+def _nice_ceil(value: int) -> int:
+    """Round a non-negative max up to a 'nice' axis top (1, 2, 5 × 10^k)."""
+    import math
+    if value <= 0:
+        return 1
+    exp = math.floor(math.log10(value))
+    base = 10 ** exp
+    for m in (1, 2, 5, 10):
+        if value <= m * base:
+            return m * base
+    return 10 * base
+
+
+def _build_single_chart(key, label, values, days, width=560, height=200):
+    """Build SVG geometry for a single-series line chart over 30 days."""
+    pad_l, pad_r, pad_t, pad_b = 40, 16, 18, 30
+    plot_w = width - pad_l - pad_r
+    plot_h = height - pad_t - pad_b
+    ymax = _nice_ceil(max(values) if values else 0)
+
+    def x(i): return pad_l + plot_w * i / 29
+    def y(v): return pad_t + plot_h * (1 - v / ymax)
+
+    yticks = []
+    tick_vals = list(range(ymax + 1)) if ymax < 5 else [round(ymax * i / 4) for i in range(5)]
+    for tv in tick_vals:
+        yticks.append({"value": tv, "y": f"{y(tv):.1f}"})
+
+    xlabels = [
+        {"x": f"{x(i):.1f}", "label": days[i]["label"]}
+        for i in (0, 6, 12, 18, 24, 29)
+    ]
+
+    return {
+        "key": key,
+        "label": label,
+        "total": sum(values),
+        "points": " ".join(f"{x(i):.1f},{y(values[i]):.1f}" for i in range(30)),
+        "dots": [
+            {"cx": f"{x(i):.1f}", "cy": f"{y(values[i]):.1f}",
+             "value": values[i], "date": days[i]["label"]}
+            for i in range(30) if values[i] > 0
+        ],
+        "yticks": yticks,
+        "xlabels": xlabels,
+        "width": width,
+        "height": height,
+        "pad_left": pad_l,
+        "plot_right": width - pad_r,
+    }
+
+
 @login_required
 def stats(request):
-    """Learning statistics and heatmap."""
+    """Learning statistics and 30-day trend charts.
+
+    Each metric gets its own single-series chart over the last 30 days:
+      - learning   = words first added to learning that day (created_at)
+      - reviewing  = REVIEW-status words last reviewed that day (mastered_at)
+      - mastered   = words that reached mastery that day (mastered_at)
+      - articles   = articles read that day (LearningActivity.articles_read)
+    """
     user = request.user
 
     # Aggregate stats
     total_learning = UserWordStatus.objects.filter(
         user=user, status=WordStatus.LEARNING
     ).count()
-    total_new = UserWordStatus.objects.filter(
-        user=user, status=WordStatus.NEW
+    total_review = UserWordStatus.objects.filter(
+        user=user, status=WordStatus.REVIEW
     ).count()
     total_mastered = UserWordStatus.objects.filter(
         user=user, status=WordStatus.MASTERED
@@ -561,32 +621,60 @@ def stats(request):
         else 0
     )
 
-    # Heatmap data: last 365 days of activity
+    # ---- 30-day per-metric trends ------------------------------------------
     today = date.today()
     from datetime import timedelta
-    start_date = today - timedelta(days=365)
-    activities = LearningActivity.objects.filter(
-        user=user,
-        date__gte=start_date,
-    ).values("date", "articles_read", "quizzes_completed", "words_mastered")
+    start_date = today - timedelta(days=29)
 
-    activity_map = {}
-    for a in activities:
-        activity_map[a["date"]] = (
-            (a["articles_read"] or 0)
-            + (a["quizzes_completed"] or 0)
-            + (a["words_mastered"] or 0)
+    def _buckets(status=None, date_field="created_at"):
+        """Count words per day within the window, grouped by a date field."""
+        qs = UserWordStatus.objects.filter(
+            user=user, **{f"{date_field}__date__gte": start_date}
         )
+        if status:
+            qs = qs.filter(status=status)
+        rows = qs.values(f"{date_field}__date").annotate(n=Count("id"))
+        return {r[f"{date_field}__date"]: r["n"] for r in rows}
+
+    learn_map = _buckets(None, "created_at")
+    review_map = _buckets(WordStatus.REVIEW, "mastered_at")
+    mastered_map = _buckets(WordStatus.MASTERED, "mastered_at")
+    articles_map = {
+        r["date"]: r["articles_read"] or 0
+        for r in LearningActivity.objects.filter(
+            user=user, date__gte=start_date
+        ).values("date", "articles_read")
+    }
+
+    days = []
+    for i in range(30):
+        d = today - timedelta(days=29 - i)
+        days.append({
+            "date": d,
+            "label": d.strftime("%m-%d"),
+            "learning": learn_map.get(d, 0),
+            "reviewing": review_map.get(d, 0),
+            "mastered": mastered_map.get(d, 0),
+            "articles": articles_map.get(d, 0),
+        })
+
+    charts = [
+        _build_single_chart("learning", "Learning", [d["learning"] for d in days], days),
+        _build_single_chart("reviewing", "Reviewing", [d["reviewing"] for d in days], days),
+        _build_single_chart("mastered", "Mastered", [d["mastered"] for d in days], days),
+        _build_single_chart("articles", "Articles Read", [d["articles"] for d in days], days),
+    ]
+    has_activity = any(c["total"] for c in charts)
 
     context = {
         "total_learning": total_learning,
-        "total_new": total_new,
+        "total_review": total_review,
         "total_mastered": total_mastered,
         "total_articles": total_articles,
         "total_quizzes": total_quizzes,
         "avg_score": round(avg_score, 1) if avg_score else 0,
-        "activity_map": activity_map,
-        "today": today,
-        "start_date": start_date,
+        "charts": charts,
+        "trend_days": days,
+        "has_activity": has_activity,
     }
     return render(request, "learning/stats.html", context)

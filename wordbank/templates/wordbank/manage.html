@@ -5,6 +5,7 @@
 {% block content %}
 <h1>Word Banks</h1>
 
+{% if user.is_superuser %}
 <!-- Create new bank -->
 <form method="post" action="{% url 'wordbank:create_bank' %}" style="margin-bottom: 2em;">
     {% csrf_token %}
@@ -13,13 +14,23 @@
         <button type="submit">Create Bank</button>
     </div>
 </form>
+{% endif %}
 
 {% if word_banks %}
 <div class="word-review-grid">
     {% for bank in word_banks %}
     <article>
-        <h3>{{ bank.name }}</h3>
+        <h3>{{ bank.name }}
+            {% if bank.id == selected_bank_id %}<mark>Selected</mark>{% endif %}
+        </h3>
         <p><strong>{{ bank.word_count }}</strong> words</p>
+        {% if bank.id == selected_bank_id and selected_stats %}
+        <p class="status-badge-row">
+            <span class="status-badge status-review">Reviewing {{ selected_stats.reviewing }}</span>
+            <span class="status-badge status-learning">Learning {{ selected_stats.learning }}</span>
+            <span class="status-badge status-mastered">Mastered {{ selected_stats.mastered }}</span>
+        </p>
+        {% endif %}
         <p><small>Created: {{ bank.created_at|date:"Y-m-d" }}</small></p>
         <div class="grid">
             <a href="{% url 'wordbank:browse' bank.id %}" role="button">Browse & Edit</a>
