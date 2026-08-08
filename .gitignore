@@ -13,3 +13,4 @@ data/zone.identifier
 .bdc.log
 .bdc.pid
 backups/
+data/
