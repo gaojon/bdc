@@ -1,5 +1,7 @@
 """Tests for word bank browse / batch-master functionality."""
 
+import re
+
 from django.contrib.auth.models import User
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -66,3 +68,17 @@ class MasterSelectedWordsTest(TestCase):
         self.assertEqual(resp.status_code, 302)
         ws = UserWordStatus.objects.get(user=self.user, word=self.words[0])
         self.assertEqual(ws.mastered_count, 5)  # direct master skips the review cycle
+
+    def test_checkbox_has_name_for_form_submission(self):
+        """A checkbox without a `name` attribute is never submitted, which
+        silently broke the batch-master button. Guard against regression."""
+        c = Client()
+        c.force_login(self.user)
+        resp = c.get(reverse("wordbank:browse", args=[self.bank.id]), {"letter": "A"})
+        self.assertEqual(resp.status_code, 200)
+        checkbox = re.search(
+            r'<input type="checkbox" class="word-check"([^>]*)>', resp.content.decode()
+        )
+        self.assertIsNotNone(checkbox)
+        self.assertRegex(checkbox.group(1), r'\bname="word_ids"')
+        self.assertRegex(checkbox.group(1), r'\bform="batch-master-form"')

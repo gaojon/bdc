@@ -73,7 +73,7 @@
     <tbody>
         {% for entry in entries %}
         <tr>
-            <td><input type="checkbox" class="word-check" value="{{ entry.id }}" form="batch-master-form"></td>
+            <td><input type="checkbox" class="word-check" name="word_ids" value="{{ entry.id }}" form="batch-master-form"></td>
             <td style="white-space:nowrap;">{{ entry.word }}</td>
             <td>{{ entry.definition }}</td>
             <td>
