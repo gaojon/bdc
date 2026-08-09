@@ -1,10 +1,13 @@
-"""Tests for learning views: index page progress counts."""
+"""Tests for learning views: index page progress counts and Review Words."""
+
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from learning.models import UserWordStatus
+from learning import services
+from learning.models import Article, UserWordStatus
 from utils.constants import WordStatus
 from wordbank.models import Word, WordBank, WordBankEntry
 
@@ -95,3 +98,78 @@ class IndexProgressCountsTest(TestCase):
         resp = c.get(reverse("learning:index"))
         html = resp.content.decode()
         self.assertIn('<option value="">-- Select a word bank --</option>', html)
+
+
+class ReviewWordsMasteredFilteringTest(TestCase):
+    """Mastered words never appear in Review Words, at generation or display."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="reader", password="pass")
+        self.bank = WordBank.objects.create(name="Culinary")
+        self.words = [
+            Word.objects.create(word=w, part_of_speech="n")
+            for w in ["effort", "inspire", "appetite", "cuisine"]
+        ]
+        for w in self.words:
+            WordBankEntry.objects.create(word_bank=self.bank, word=w)
+
+    def _make_article(self):
+        return Article.objects.create(
+            user=self.user,
+            word_bank=self.bank,
+            title="Test",
+            content="body",
+            content_html="<p>body</p>",
+            target_word_ids=[w.id for w in self.words],
+            hit_word_ids=[w.id for w in self.words],
+            sentence_complexity=5,
+        )
+
+    def test_filter_mastered_words_drops_only_mastered(self):
+        UserWordStatus.objects.create(
+            user=self.user, word=self.words[0], status=WordStatus.MASTERED
+        )
+        UserWordStatus.objects.create(
+            user=self.user, word=self.words[1], status=WordStatus.LEARNING
+        )
+        kept = services.filter_mastered_words(self.user, list(self.words))
+        self.assertNotIn(self.words[0], kept)   # mastered → dropped
+        self.assertIn(self.words[1], kept)      # learning → kept
+        self.assertIn(self.words[2], kept)      # new → kept
+
+    def test_generation_does_not_store_mastered_hit_words(self):
+        UserWordStatus.objects.create(
+            user=self.user, word=self.words[0], status=WordStatus.MASTERED
+        )
+        fake_ai = {
+            "title": "Test Article",
+            "content": "It takes effort and appetite to cook.",
+            "hit_words": ["effort", "appetite"],  # effort is mastered
+            "glossary": {"effort": "x", "appetite": "y"},
+            "quiz": {"questions": []},
+        }
+        with patch("learning.ai.generate_article", return_value=fake_ai):
+            c = Client()
+            c.force_login(self.user)
+            resp = c.post(
+                reverse("learning:generate"),
+                {"word_bank_id": self.bank.id, "sentence_complexity": "5"},
+            )
+        self.assertEqual(resp.status_code, 302)
+        article = Article.objects.get(title="Test Article")
+        self.assertIn(self.words[2].id, article.hit_word_ids)   # appetite kept
+        self.assertNotIn(self.words[0].id, article.hit_word_ids)  # effort dropped
+
+    def test_article_view_excludes_mastered_review_words(self):
+        article = self._make_article()
+        # Word mastered AFTER the article was generated.
+        UserWordStatus.objects.create(
+            user=self.user, word=self.words[0], status=WordStatus.MASTERED
+        )
+        c = Client()
+        c.force_login(self.user)
+        resp = c.get(reverse("learning:article", args=[article.id]))
+        self.assertEqual(resp.status_code, 200)
+        shown = {w.word for w in resp.context["hit_words"]}
+        self.assertNotIn("effort", shown)
+        self.assertIn("appetite", shown)

@@ -231,20 +231,27 @@ def generate_article(request):
         messages.error(request, "AI service is currently unavailable. Please try again later.")
         return redirect("learning:index")
 
-    # Resolve hit_words to Word objects in DB (filter by bank via WordBankEntry)
+    # Resolve hit_words to Word objects in DB (filter by bank via WordBankEntry).
+    # The AI pool already excludes mastered words, but the model may still list a
+    # few extra words as hit_words — drop any that are mastered so Review Words
+    # never shows vocabulary the user already knows.
     hit_word_strings = article_data.get("hit_words", [])
-    hit_words = Word.objects.filter(
-        bank_entries__word_bank=word_bank, word__in=hit_word_strings
+    hit_words = services.filter_mastered_words(
+        request.user,
+        list(
+            Word.objects.filter(
+                bank_entries__word_bank=word_bank, word__in=hit_word_strings
+            )
+        ),
     )
-    hit_word_map = {w.word.lower(): w for w in hit_words}
 
     # Get mastered words for light highlighting
     mastered_word_strings = services.get_mastered_words(request.user, word_bank)
 
-    # Build highlighted HTML
+    # Build highlighted HTML (targets = the filtered, un-mastered hit words)
     content_html = services.build_highlighted_html(
         article_data["content"],
-        target_words=hit_word_strings,
+        target_words=[w.word for w in hit_words],
         mastered_words=mastered_word_strings,
     )
 
@@ -301,8 +308,10 @@ def article(request, article_id):
     if hasattr(article, "quiz"):
         quiz = article.quiz
 
-    # Build glossary from hit words
-    hit_words = Word.objects.filter(id__in=article.hit_word_ids)
+    # Build glossary from hit words, excluding any the user has since mastered
+    hit_words = services.filter_mastered_words(
+        request.user, list(Word.objects.filter(id__in=article.hit_word_ids))
+    )
 
     context = {
         "article": article,
@@ -487,13 +496,18 @@ def regenerate(request, article_id):
         return redirect("learning:article", article_id=article_id)
 
     hit_word_strings = article_data.get("hit_words", [])
-    hit_words = Word.objects.filter(
-        bank_entries__word_bank=word_bank, word__in=hit_word_strings
+    hit_words = services.filter_mastered_words(
+        request.user,
+        list(
+            Word.objects.filter(
+                bank_entries__word_bank=word_bank, word__in=hit_word_strings
+            )
+        ),
     )
     mastered_word_strings = services.get_mastered_words(request.user, word_bank)
     content_html = services.build_highlighted_html(
         article_data["content"],
-        target_words=hit_word_strings,
+        target_words=[w.word for w in hit_words],
         mastered_words=mastered_word_strings,
     )
 
@@ -551,7 +565,9 @@ def article_detail(request, article_id):
     if hasattr(article, "quiz"):
         quiz = article.quiz
 
-    hit_words = Word.objects.filter(id__in=article.hit_word_ids)
+    hit_words = services.filter_mastered_words(
+        request.user, list(Word.objects.filter(id__in=article.hit_word_ids))
+    )
 
     context = {
         "article": article,

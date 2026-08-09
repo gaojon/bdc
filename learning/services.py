@@ -122,6 +122,26 @@ def select_words_for_article(
     return list(Word.objects.filter(id__in=available_ids))
 
 
+def filter_mastered_words(user: User, words: list[Word]) -> list[Word]:
+    """Drop words the user has already mastered from a list (e.g. Review Words).
+
+    Mastery is per (user, word) and Word rows are shared across banks, so a
+    word mastered anywhere is filtered everywhere. Used at generation time so a
+    mastered word is never stored as a review target, and at render time so
+    words mastered after generation also drop out of Review Words.
+    """
+    if not words:
+        return words
+    mastered_ids = set(
+        UserWordStatus.objects.filter(
+            user=user,
+            word_id__in=[w.id for w in words],
+            status=WordStatus.MASTERED,
+        ).values_list("word_id", flat=True)
+    )
+    return [w for w in words if w.id not in mastered_ids]
+
+
 def get_mastered_words(user: User, word_bank: WordBank) -> list[str]:
     """Return the list of mastered word strings for a user in a word bank.
 
