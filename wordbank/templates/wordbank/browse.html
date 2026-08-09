@@ -130,8 +130,9 @@ function updateSelection() {
     selCountEls.forEach(el => el.textContent = n);
     masterBtns.forEach(btn => btn.disabled = n === 0);
     selectAll.checked = wordChecks.length > 0 && n === wordChecks.length;
-    // Keep the alphabet quick-jump links in sync: unchecking individual rows
-    // turns Select All off, so the next letter jump must not carry it either.
+    // Keep the alphabet quick-jump links in sync. They always carry
+    // select_all=1, so a letter jump re-selects everything regardless of what
+    // was unchecked here.
     updateLetterLinks();
 }
 
@@ -175,15 +176,15 @@ function syncBatchFormStatus() {
 }
 
 // Keep the alphabet quick-jump hrefs in sync with the selected statuses so
-// switching letters preserves the filter without a server round-trip. The
-// Select All state is carried the same way (?select_all=1), so it survives a
-// letter jump and is re-applied on the next page load.
+// switching letters preserves the filter without a server round-trip. Every
+// letter jump also carries ?select_all=1: after switching letters, Select All
+// is always back on so the target letter's words start fully selected.
 function updateLetterLinks() {
     const params = new URLSearchParams();
     for (const cb of statusChecks) {
         if (cb.checked) params.append('status', cb.value);
     }
-    if (selectAll.checked) params.append('select_all', '1');
+    params.append('select_all', '1');
     const qs = params.toString();
     document.querySelectorAll('a.alphabet-link').forEach(a => {
         a.href = '?letter=' + a.dataset.letter + (qs ? '&' + qs : '');
