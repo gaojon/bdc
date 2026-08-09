@@ -3,7 +3,10 @@
 {% block title %}BDC{% endblock %}
 
 {% block content %}
-<h1>BDC</h1>
+<h1>BDC
+    <span class="status-badge status-mastered">Mastered {{ mastered_count }}</span>
+    <span class="status-badge status-learning">Un-Mastered <span id="unmastered-count">{{ unmastered_count }}</span></span>
+</h1>
 
 {# ---- Article Generation Form ---- #}
 <div class="grid">
@@ -16,7 +19,8 @@
                 <select name="word_bank_id" required>
                     <option value="">-- Select a word bank --</option>
                     {% for bank in word_banks %}
-                    <option value="{{ bank.id }}" {% if bank.id == selected_bank_id %}selected{% endif %}>
+                    <option value="{{ bank.id }}" {% if bank.id == selected_bank_id %}selected{% endif %}
+                            data-unmastered="{{ bank.unmastered_count }}">
                         {{ bank.name }} ({{ bank.entries.count }} words)
                     </option>
                     {% endfor %}
@@ -126,4 +130,18 @@
 {% else %}
 <p>No articles yet. Generate your first article above!</p>
 {% endif %}
+
+<script>
+// Keep the Un-Mastered count in the BDC heading in sync with the selected
+// word bank. Each <option> carries its bank's count in data-unmastered.
+const bankSelect = document.querySelector('select[name="word_bank_id"]');
+const unmasteredEl = document.getElementById('unmastered-count');
+if (bankSelect && unmasteredEl) {
+    bankSelect.addEventListener('change', () => {
+        const opt = bankSelect.selectedOptions[0];
+        unmasteredEl.textContent = opt && opt.dataset.unmastered !== undefined
+            ? opt.dataset.unmastered : '0';
+    });
+}
+</script>
 {% endblock %}

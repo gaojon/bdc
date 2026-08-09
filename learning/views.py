@@ -22,7 +22,7 @@ from learning.models import (
 )
 from utils.config import get_config
 from utils.constants import SENTENCE_COMPLEXITY_MAX, SENTENCE_COMPLEXITY_MIN, WordStatus
-from wordbank.models import Word, WordBank
+from wordbank.models import Word, WordBank, WordBankEntry
 
 
 def _get_version_info() -> dict:
@@ -53,6 +53,41 @@ def index(request):
     word_banks = WordBank.objects.all()
     interests = Interest.objects.all()
     profile = request.user.profile
+
+    # Progress summary shown in the BDC heading: mastered = the user's total
+    # mastered words (across all banks); un-mastered = words still to learn in
+    # the selected bank (辞典), 0 if none is selected. Per-bank counts ride on
+    # the <option> elements so the number updates when the dropdown changes.
+    mastered_count = UserWordStatus.objects.filter(
+        user=request.user, status=WordStatus.MASTERED
+    ).count()
+
+    bank_totals = dict(
+        WordBankEntry.objects.values("word_bank_id")
+        .annotate(n=Count("id"))
+        .values_list("word_bank_id", "n")
+    )
+    bank_mastered = dict(
+        UserWordStatus.objects.filter(
+            user=request.user, status=WordStatus.MASTERED
+        )
+        .filter(word__bank_entries__word_bank_id__in=list(bank_totals))
+        .values("word__bank_entries__word_bank_id")
+        .annotate(n=Count("word_id"))
+        .values_list("word__bank_entries__word_bank_id", "n")
+    )
+    for bank in word_banks:
+        bank.unmastered_count = (
+            bank_totals.get(bank.id, 0) - bank_mastered.get(bank.id, 0)
+        )
+
+    selected_bank_id = profile.selected_word_bank_id
+    unmastered_count = 0
+    if selected_bank_id:
+        unmastered_count = (
+            bank_totals.get(selected_bank_id, 0)
+            - bank_mastered.get(selected_bank_id, 0)
+        )
 
     # Daily usage info
     allowed, remaining = services.check_daily_limit(request.user)
@@ -88,6 +123,8 @@ def index(request):
         "interests": interests,
         "profile": profile,
         "selected_bank_id": profile.selected_word_bank_id,
+        "mastered_count": mastered_count,
+        "unmastered_count": unmastered_count,
         "complexity_min": SENTENCE_COMPLEXITY_MIN,
         "complexity_max": SENTENCE_COMPLEXITY_MAX,
         "article_length": profile.article_length,
