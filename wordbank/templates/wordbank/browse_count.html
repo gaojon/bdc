@@ -1,0 +1,4 @@
+{% comment %}Showing-count fragment: rendered in the page header and returned by
+the AJAX partial refresh (browse_fragment.html). Kept in sync with the results
+table so the "showing N ..." line updates with the filter.{% endcomment %}
+<span id="showing-count">{% if statuses %} | showing {{ entries|length }} {{ status_labels|join:"/" }}{% endif %}</span>

@@ -162,6 +162,10 @@ def browse(request, bank_id):
         "entries": entries,
         "total": words_qs.count(),
     }
+    # ?partial=1 is used by the status-filter checkboxes: instead of reloading
+    # the whole page, they fetch just the results region and swap it in place.
+    if request.GET.get("partial") == "1":
+        return render(request, "wordbank/browse_fragment.html", context)
     return render(request, "wordbank/browse.html", context)
 
 

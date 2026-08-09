@@ -220,6 +220,23 @@ class BrowseStatusFilterTest(TestCase):
             {"alpha", "actor"},
         )
 
+    def test_partial_returns_results_fragment_only(self):
+        """?partial=1 (AJAX status filter) returns the results region, not
+        the whole page."""
+        c = Client()
+        c.force_login(self.user)
+        resp = c.get(
+            reverse("wordbank:browse", args=[self.bank.id]),
+            {"letter": "A", "status": "learning", "partial": "1"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn('id="browse-results"', html)
+        self.assertIn('id="showing-count"', html)
+        self.assertIn("actor", html)          # the learning word is shown
+        self.assertNotIn("alpha", html)       # mastered word filtered out
+        self.assertNotIn("<html", html)       # no base template shell
+
 
 class ImportCsvPermissionTest(TestCase):
     def setUp(self):

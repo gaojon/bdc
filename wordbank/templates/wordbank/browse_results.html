@@ -1,0 +1,71 @@
+{% comment %}Results region: rendered in browse.html and by the AJAX partial
+refresh (browse_fragment.html). Swapped in place on status-filter changes so
+the toolbar and page never reload.{% endcomment %}
+<div id="browse-results">
+{% if letter %}
+    <h2 style="border-bottom:2px solid var(--pico-primary);padding-bottom:0.25em;margin-top:1.5em;">{{ letter }}</h2>
+    {% if entries %}
+    <table>
+        <thead>
+            <tr>
+                <th style="width:2em;"></th>
+                <th>Word</th>
+                <th>Definition</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries %}
+            <tr>
+                <td><input type="checkbox" class="word-check" name="word_ids" value="{{ entry.id }}" form="batch-master-form"></td>
+                <td style="white-space:nowrap;">{{ entry.word }}</td>
+                <td>{{ entry.definition }}</td>
+                <td>
+                    {% if entry.is_mastered %}
+                        <span class="status-badge status-mastered">Mastered</span>
+                    {% elif entry.status == "review" %}
+                        <span class="status-badge status-review">Review</span>
+                    {% elif entry.status == "learning" %}
+                        <span class="status-badge status-learning">Learning</span>
+                    {% else %}
+                        <span class="status-badge status-new">New</span>
+                    {% endif %}
+                </td>
+                <td style="white-space:nowrap;">
+                    {% if user.is_superuser %}
+                    <button type="button"
+                            onclick="editWord(this)"
+                            data-id="{{ entry.id }}"
+                            data-word="{{ entry.word }}"
+                            data-def="{{ entry.definition }}"
+                            data-phrase="{{ entry.is_phrase|yesno:'true,false' }}"
+                            style="margin:0; padding:2px 8px; font-size:0.8rem;">Edit</button>
+                    {% endif %}
+                    {% if entry.is_mastered %}
+                    <form method="post" action="{% url 'wordbank:unmaster_word' entry.id %}"
+                          style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit"
+                                style="margin:0; padding:2px 8px; font-size:0.8rem; background:#d97706; border-color:#d97706; color:#fff;">Learning</button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{% url 'wordbank:master_word' entry.id %}"
+                          style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit"
+                                style="margin:0; padding:2px 8px; font-size:0.8rem; background:#059669; border-color:#059669; color:#fff;">Mastered</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>{% if statuses %}No words match the selected status filters.{% else %}No words starting with "{{ letter }}".{% endif %}</p>
+    {% endif %}
+{% else %}
+    <p>No words in this bank. Import a CSV to get started.</p>
+{% endif %}
+</div>

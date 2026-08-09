@@ -4,7 +4,7 @@
 
 {% block content %}
 <h1>{{ word_bank.name }}</h1>
-<p><strong>{{ total }}</strong> words{% if statuses %} | showing {{ entries|length }} {{ status_labels|join:"/" }}{% endif %} | <a href="{% url 'wordbank:manage' %}">← Back to Word Banks</a></p>
+<p><strong>{{ total }}</strong> words{% include "wordbank/browse_count.html" %} | <a href="{% url 'wordbank:manage' %}">← Back to Word Banks</a></p>
 
 <!-- Sticky bar: batch toolbar + alphabet quick-jump (one letter rendered per page load) -->
 <div style="position:sticky;top:0;z-index:10;background:var(--pico-background-color);padding:0.5em 0;border-bottom:1px solid var(--pico-muted-border-color);margin-bottom:1em;">
@@ -23,8 +23,9 @@
                 Master Selected (<span class="sel-count">0</span>)
             </button>
         </form>
-        <!-- Status filter: multi-select checkboxes, re-filter on change -->
-        <form method="get" action="" style="display:flex;align-items:center;gap:0.6em;margin:0;">
+        <!-- Status filter: multi-select checkboxes, AJAX re-filter on change.
+             onchange is a noscript fallback; JS removes it and fetches in place. -->
+        <form id="status-form" method="get" action="" style="display:flex;align-items:center;gap:0.6em;margin:0;">
             <input type="hidden" name="letter" value="{{ letter }}">
             <label style="margin:0;font-weight:bold;font-size:0.85rem;">Status:</label>
             {% for value, label in status_choices %}
@@ -73,69 +74,8 @@
 
 <hr>
 
-<!-- Current letter's words -->
-{% if letter %}
-<h2 style="border-bottom:2px solid var(--pico-primary);padding-bottom:0.25em;margin-top:1.5em;">{{ letter }}</h2>
-{% if entries %}
-<table>
-    <thead>
-        <tr>
-            <th style="width:2em;"></th>
-            <th>Word</th>
-            <th>Definition</th>
-            <th>Status</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for entry in entries %}
-        <tr>
-            <td><input type="checkbox" class="word-check" name="word_ids" value="{{ entry.id }}" form="batch-master-form"></td>
-            <td style="white-space:nowrap;">{{ entry.word }}</td>
-            <td>{{ entry.definition }}</td>
-            <td>
-                {% if entry.is_mastered %}
-                    <span class="status-badge status-mastered">Mastered</span>
-                {% elif entry.status == "review" %}
-                    <span class="status-badge status-review">Review</span>
-                {% elif entry.status == "learning" %}
-                    <span class="status-badge status-learning">Learning</span>
-                {% else %}
-                    <span class="status-badge status-new">New</span>
-                {% endif %}
-            </td>
-            <td style="white-space:nowrap;">
-                {% if user.is_superuser %}
-                <button type="button"
-                        onclick="editWord({{ entry.id }})"
-                        style="margin:0; padding:2px 8px; font-size:0.8rem;">Edit</button>
-                {% endif %}
-                {% if entry.is_mastered %}
-                <form method="post" action="{% url 'wordbank:unmaster_word' entry.id %}"
-                      style="display:inline;">
-                    {% csrf_token %}
-                    <button type="submit"
-                            style="margin:0; padding:2px 8px; font-size:0.8rem; background:#d97706; border-color:#d97706; color:#fff;">Learning</button>
-                </form>
-                {% else %}
-                <form method="post" action="{% url 'wordbank:master_word' entry.id %}"
-                      style="display:inline;">
-                    {% csrf_token %}
-                    <button type="submit"
-                            style="margin:0; padding:2px 8px; font-size:0.8rem; background:#059669; border-color:#059669; color:#fff;">Mastered</button>
-                </form>
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-{% else %}
-<p>{% if statuses %}No words match the selected status filters.{% else %}No words starting with "{{ letter }}".{% endif %}</p>
-{% endif %}
-{% else %}
-<p>No words in this bank. Import a CSV to get started.</p>
-{% endif %}
+<!-- Current letter's words (shared with the AJAX partial refresh) -->
+{% include "wordbank/browse_results.html" %}
 
 <!-- Edit Word Modal -->
 <dialog id="edit-dialog">
@@ -164,31 +104,23 @@
 </dialog>
 
 <script>
-const wordData = {
-    {% for entry in entries %}
-    {{ entry.id }}: {word:"{{ entry.word|escapejs }}", def:"{{ entry.definition|escapejs }}", phrase:{{ entry.is_phrase|yesno:"true,false"}} },
-    {% endfor %}
-};
-
-// Fix trailing comma
-(function(){ for(let k in wordData){} })()
-
-function editWord(wordId) {
-    const data = wordData[wordId];
+function editWord(btn) {
+    // Read word data straight from the button: rows are swapped in by the
+    // AJAX status filter, so there is no cached map to keep in sync.
     const dialog = document.getElementById('edit-dialog');
-    document.getElementById('edit-title').textContent = 'Edit: ' + data.word;
-    document.getElementById('edit-form').action = '/bank/word/' + wordId + '/edit/';
-    document.getElementById('edit-word').value = data.word;
-    document.getElementById('edit-def').value = data.def;
-    document.getElementById('edit-phrase').checked = data.phrase;
+    document.getElementById('edit-title').textContent = 'Edit: ' + btn.dataset.word;
+    document.getElementById('edit-form').action = '/bank/word/' + btn.dataset.id + '/edit/';
+    document.getElementById('edit-word').value = btn.dataset.word;
+    document.getElementById('edit-def').value = btn.dataset.def;
+    document.getElementById('edit-phrase').checked = btn.dataset.phrase === 'true';
     dialog.showModal();
 }
 
 // --- Batch selection: select all + Master Selected buttons ---
 const selectAll = document.getElementById('select-all');
-const wordChecks = Array.from(document.querySelectorAll('.word-check'));
 const selCountEls = Array.from(document.querySelectorAll('.sel-count'));
 const masterBtns = Array.from(document.querySelectorAll('.master-selected-btn'));
+let wordChecks = [];
 
 function updateSelection() {
     const n = wordChecks.filter(cb => cb.checked).length;
@@ -197,11 +129,85 @@ function updateSelection() {
     selectAll.checked = wordChecks.length > 0 && n === wordChecks.length;
 }
 
-wordChecks.forEach(cb => cb.addEventListener('change', updateSelection));
+// Re-collect row checkboxes: the AJAX status filter replaces the tbody, so
+// the old nodes (and their listeners) are gone.
+function refreshSelection() {
+    wordChecks = Array.from(document.querySelectorAll('.word-check'));
+    wordChecks.forEach(cb => cb.addEventListener('change', updateSelection));
+    updateSelection();
+}
+
 selectAll.addEventListener('change', function() {
     wordChecks.forEach(cb => cb.checked = this.checked);
     updateSelection();
 });
-updateSelection();
+
+// --- Status filter: AJAX partial refresh (no full page reload) ---
+const statusForm = document.getElementById('status-form');
+const statusChecks = Array.from(statusForm.querySelectorAll('input[name="status"]'));
+let filterToken = 0;
+
+// Keep the batch-master form's hidden status fields in sync with the
+// checkboxes, so Master Selected still redirects back to this filter.
+function syncBatchFormStatus() {
+    const batchForm = document.getElementById('batch-master-form');
+    batchForm.querySelectorAll('input[type="hidden"][name="status"]').forEach(el => el.remove());
+    for (const cb of statusChecks) {
+        if (cb.checked) {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'status';
+            hidden.value = cb.value;
+            batchForm.appendChild(hidden);
+        }
+    }
+}
+
+async function applyStatusFilter() {
+    // Keep the batch-master form's hidden statuses in sync even if the fetch
+    // below fails, so Master Selected still preserves this filter.
+    syncBatchFormStatus();
+    const letter = statusForm.querySelector('input[name="letter"]').value;
+    const params = new URLSearchParams();
+    if (letter) params.set('letter', letter);
+    for (const cb of statusChecks) {
+        if (cb.checked) params.append('status', cb.value);
+    }
+    params.set('partial', '1');
+
+    // Reflect the filter in the address bar without navigating (shareable URL).
+    const visible = new URLSearchParams(params);
+    visible.delete('partial');
+    const qs = visible.toString();
+    history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+
+    const token = ++filterToken;
+    try {
+        const resp = await fetch(window.location.pathname + '?' + params.toString());
+        if (token !== filterToken) return;  // a newer click superseded this one
+        const html = await resp.text();
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+
+        const newCount = doc.getElementById('showing-count');
+        const oldCount = document.getElementById('showing-count');
+        if (newCount && oldCount) oldCount.outerHTML = newCount.outerHTML;
+
+        const newResults = doc.getElementById('browse-results');
+        const oldResults = document.getElementById('browse-results');
+        if (newResults && oldResults) oldResults.replaceWith(newResults);
+
+        refreshSelection();
+    } catch (e) {
+        // Network/parse failure: leave the current results untouched.
+    }
+}
+
+// Drop the noscript full-reload fallback now that we fetch in place.
+statusChecks.forEach(cb => {
+    cb.removeAttribute('onchange');
+    cb.addEventListener('change', applyStatusFilter);
+});
+
+refreshSelection();
 </script>
 {% endblock %}
