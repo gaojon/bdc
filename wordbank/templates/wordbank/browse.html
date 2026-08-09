@@ -128,6 +128,9 @@ function updateSelection() {
     selCountEls.forEach(el => el.textContent = n);
     masterBtns.forEach(btn => btn.disabled = n === 0);
     selectAll.checked = wordChecks.length > 0 && n === wordChecks.length;
+    // Keep the alphabet quick-jump links in sync: unchecking individual rows
+    // turns Select All off, so the next letter jump must not carry it either.
+    updateLetterLinks();
 }
 
 // Re-collect row checkboxes: the AJAX status filter replaces the tbody, so
@@ -135,6 +138,11 @@ function updateSelection() {
 function refreshSelection() {
     wordChecks = Array.from(document.querySelectorAll('.word-check'));
     wordChecks.forEach(cb => cb.addEventListener('change', updateSelection));
+    // If Select All is on (just toggled, or restored after a letter jump),
+    // the freshly loaded/replaced rows should all be selected too.
+    if (selectAll.checked) {
+        wordChecks.forEach(cb => cb.checked = true);
+    }
     updateSelection();
 }
 
@@ -165,12 +173,15 @@ function syncBatchFormStatus() {
 }
 
 // Keep the alphabet quick-jump hrefs in sync with the selected statuses so
-// switching letters preserves the filter without a server round-trip.
+// switching letters preserves the filter without a server round-trip. The
+// Select All state is carried the same way (?select_all=1), so it survives a
+// letter jump and is re-applied on the next page load.
 function updateLetterLinks() {
     const params = new URLSearchParams();
     for (const cb of statusChecks) {
         if (cb.checked) params.append('status', cb.value);
     }
+    if (selectAll.checked) params.append('select_all', '1');
     const qs = params.toString();
     document.querySelectorAll('a.alphabet-link').forEach(a => {
         a.href = '?letter=' + a.dataset.letter + (qs ? '&' + qs : '');
@@ -198,6 +209,7 @@ async function applyStatusFilter() {
     // Reflect the filter in the address bar without navigating (shareable URL).
     const visible = new URLSearchParams(params);
     visible.delete('partial');
+    if (selectAll.checked) visible.set('select_all', '1');
     const qs = visible.toString();
     history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
 
@@ -228,6 +240,12 @@ statusChecks.forEach(cb => {
     cb.addEventListener('change', applyStatusFilter);
 });
 
+// A letter jump is a full page load, so the Select All state recorded in the
+// URL (?select_all=1) has to be re-applied to this letter's rows on load.
+if (new URLSearchParams(window.location.search).get('select_all') === '1') {
+    selectAll.checked = true;
+}
 refreshSelection();
+updateLetterLinks();
 </script>
 {% endblock %}
