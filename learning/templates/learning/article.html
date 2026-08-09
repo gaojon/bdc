@@ -34,13 +34,6 @@
 </details>
 {% endif %}
 
-<!-- Mastered words that appeared -->
-{% if mastered_words_in_article %}
-<p><small>Previously mastered words in this article (light highlight):
-{% for w in mastered_words_in_article %}<span class="word-mastered">{{ w.word }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}
-</small></p>
-{% endif %}
-
 <!-- Article content with highlighted words -->
 <article>
     {{ article.content_html|safe }}

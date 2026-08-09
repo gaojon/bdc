@@ -304,16 +304,10 @@ def article(request, article_id):
     # Build glossary from hit words
     hit_words = Word.objects.filter(id__in=article.hit_word_ids)
 
-    # Build mastered words info for the display
-    mastered_words_in_article = Word.objects.filter(
-        id__in=article.mastered_word_ids
-    ) if article.mastered_word_ids else []
-
     context = {
         "article": article,
         "quiz": quiz,
         "hit_words": hit_words,
-        "mastered_words_in_article": mastered_words_in_article,
         "read_only": request.user != article.user,
     }
     return render(request, "learning/article.html", context)
@@ -563,7 +557,6 @@ def article_detail(request, article_id):
         "article": article,
         "quiz": quiz,
         "hit_words": hit_words,
-        "mastered_words_in_article": [],
         "read_only": request.user != article.user,
     }
     return render(request, "learning/article.html", context)
