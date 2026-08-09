@@ -6,15 +6,32 @@
 <h1>{{ word_bank.name }}</h1>
 <p><strong>{{ total }}</strong> words | <a href="{% url 'wordbank:manage' %}">← Back to Word Banks</a></p>
 
-<!-- Alphabet quick-jump: one letter is rendered per page load -->
-<nav style="position:sticky;top:0;z-index:10;background:var(--pico-background-color);padding:0.5em 0;border-bottom:1px solid var(--pico-muted-border-color);margin-bottom:1em;">
-    {% for l in letters %}
-    <a href="?letter={{ l }}"
-       {% if l == letter %}style="display:inline-block;min-width:1.8em;text-align:center;font-weight:bold;padding:2px 4px;margin:0 1px;background:var(--pico-primary);color:#fff;border-radius:4px;"
-       {% else %}style="display:inline-block;min-width:1.8em;text-align:center;font-weight:bold;padding:2px 4px;margin:0 1px;"
-       {% endif %}>{{ l }}</a>
-    {% endfor %}
-</nav>
+<!-- Sticky bar: batch toolbar + alphabet quick-jump (one letter rendered per page load) -->
+<div style="position:sticky;top:0;z-index:10;background:var(--pico-background-color);padding:0.5em 0;border-bottom:1px solid var(--pico-muted-border-color);margin-bottom:1em;">
+    <!-- Batch toolbar: select all + master selected -->
+    <form id="batch-master-form" method="post" action="{% url 'wordbank:master_selected' word_bank.id %}"
+          style="display:flex;align-items:center;gap:1.2em;margin:0 0 0.5em 0;">
+        {% csrf_token %}
+        <input type="hidden" name="letter" value="{{ letter }}">
+        <label style="margin:0;display:flex;align-items:center;gap:0.4em;font-weight:bold;">
+            <input type="checkbox" id="select-all">
+            Select All
+        </label>
+        <button type="submit" class="master-selected-btn" style="margin:0;padding:0.3em 0.9em;font-size:0.85rem;background:#059669;border-color:#059669;color:#fff;">
+            Master Selected (<span class="sel-count">0</span>)
+        </button>
+        <span style="font-size:0.8rem;color:var(--pico-muted-color);">Batch-mark the checked words as mastered</span>
+    </form>
+    <!-- Alphabet quick-jump -->
+    <nav style="padding:0;border:none;margin:0;">
+        {% for l in letters %}
+        <a href="?letter={{ l }}"
+           {% if l == letter %}style="display:inline-block;min-width:1.8em;text-align:center;font-weight:bold;padding:2px 4px;margin:0 1px;background:var(--pico-primary);color:#fff;border-radius:4px;"
+           {% else %}style="display:inline-block;min-width:1.8em;text-align:center;font-weight:bold;padding:2px 4px;margin:0 1px;"
+           {% endif %}>{{ l }}</a>
+        {% endfor %}
+    </nav>
+</div>
 
 <hr>
 
@@ -46,6 +63,7 @@
 <table>
     <thead>
         <tr>
+            <th style="width:2em;"></th>
             <th>Word</th>
             <th>Definition</th>
             <th>Status</th>
@@ -55,6 +73,7 @@
     <tbody>
         {% for entry in entries %}
         <tr>
+            <td><input type="checkbox" class="word-check" value="{{ entry.id }}" form="batch-master-form"></td>
             <td style="white-space:nowrap;">{{ entry.word }}</td>
             <td>{{ entry.definition }}</td>
             <td>
@@ -145,5 +164,25 @@ function editWord(wordId) {
     document.getElementById('edit-phrase').checked = data.phrase;
     dialog.showModal();
 }
+
+// --- Batch selection: select all + Master Selected buttons ---
+const selectAll = document.getElementById('select-all');
+const wordChecks = Array.from(document.querySelectorAll('.word-check'));
+const selCountEls = Array.from(document.querySelectorAll('.sel-count'));
+const masterBtns = Array.from(document.querySelectorAll('.master-selected-btn'));
+
+function updateSelection() {
+    const n = wordChecks.filter(cb => cb.checked).length;
+    selCountEls.forEach(el => el.textContent = n);
+    masterBtns.forEach(btn => btn.disabled = n === 0);
+    selectAll.checked = wordChecks.length > 0 && n === wordChecks.length;
+}
+
+wordChecks.forEach(cb => cb.addEventListener('change', updateSelection));
+selectAll.addEventListener('change', function() {
+    wordChecks.forEach(cb => cb.checked = this.checked);
+    updateSelection();
+});
+updateSelection();
 </script>
 {% endblock %}

@@ -7,6 +7,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.http import urlencode
 
 from django.db.models import Count
 from django.db.models.functions import Lower, Substr
@@ -183,6 +185,55 @@ def master_word(request, word_id):
 
     messages.success(request, f"Marked as mastered: {word.word}")
     return _word_browse_redirect(request, word)
+
+
+@login_required
+def master_selected_words(request, bank_id):
+    """Batch-mark selected words as mastered (POST only).
+
+    Only word IDs that actually belong to this word bank are accepted, so a
+    crafted request cannot mark arbitrary words.
+    """
+    if request.method != "POST":
+        return redirect("wordbank:manage")
+
+    word_bank = get_object_or_404(WordBank, id=bank_id)
+    bank_word_ids = set(
+        WordBankEntry.objects.filter(word_bank=word_bank)
+        .values_list("word_id", flat=True)
+    )
+
+    selected = []
+    for raw in request.POST.getlist("word_ids"):
+        if raw.isdigit() and int(raw) in bank_word_ids:
+            selected.append(int(raw))
+
+    newly_mastered = 0
+    if selected:
+        from learning.services import mark_mastered_direct
+        for wid in selected:
+            ws, _ = UserWordStatus.objects.get_or_create(
+                user=request.user,
+                word_id=wid,
+                defaults={"status": WordStatus.LEARNING},
+            )
+            if ws.status != WordStatus.MASTERED:
+                mark_mastered_direct(ws)
+                newly_mastered += 1
+
+    if newly_mastered:
+        messages.success(
+            request,
+            f"Marked {newly_mastered} word{'s' if newly_mastered != 1 else ''} as mastered.",
+        )
+    else:
+        messages.warning(request, "No words were changed (none selected or already mastered).")
+
+    letter = request.POST.get("letter", "")
+    url = reverse("wordbank:browse", args=[bank_id])
+    if letter:
+        url += "?" + urlencode({"letter": letter})
+    return redirect(url)
 
 
 @login_required

@@ -231,7 +231,7 @@
         font-size: 0.9rem;
     }
 
-    td input {
+    td input:not([type="checkbox"]) {
         min-width: 80px !important;
     }
 }
@@ -280,8 +280,8 @@
         width: 100%;
     }
 
-    /* Form elements full width */
-    input, select, textarea {
+    /* Form elements full width (except checkboxes, which stay square) */
+    input:not([type="checkbox"]), select, textarea {
         width: 100%;
     }
 

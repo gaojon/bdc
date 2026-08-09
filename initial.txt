@@ -1,0 +1,34 @@
+# Word Bank 首字母大小写检查结果
+# 检查范围：wordbank_word 共 8657 个单词
+# 检查项：专有名词 / 缩写应大写而未大写；以及反向问题（普通词被错误大写）
+
+## 一、专有名词应大写首字母而未大写（需修正）
+
+| 词库单词 | 应改为 | 词性 | 释义 |
+|---|---|---|---|
+| catholic  | Catholic  | a; n | (adjective) relating to the Roman Catholic Church |
+| christian | Christian | n    | a person who follows the religion of Jesus Christ |
+| jewish    | Jewish    | adj  | relating to Judaism or the Jewish people |
+
+这 3 个词均派生自专有名词，表示宗教/民族相关含义时首字母必须大写。
+
+## 二、边界情况（名词表示"地区"时应大写）
+
+| 词库单词 | 应改为 | 词性 | 释义 |
+|---|---|---|---|
+| arctic    | Arctic    | a; n | (noun) the very cold region around the North Pole |
+| antarctic | Antarctic | a; n | (adjective) relating to the very cold region around the South Pole |
+
+说明：作形容词表示"极寒的"时习惯用小写 arctic/antarctic；但名词指代地理区域（the Arctic / the Antarctic）时应大写。
+
+## 三、缩写/缩略词
+
+未发现应以大写形式书写的小写缩写。laser / radar / scuba 等虽源于首字母缩略，但已作为普通名词小写使用，属正确写法。
+
+## 四、反向问题：普通词被错误大写（供参考，需改小写）
+
+以下 20 个为普通名词/动词/形容词，却以大写首字母存入词库，应改为小写：
+
+Bonus, Breakthrough, Ceramics, Erupt, Extension, Hello, Hi, Inform,
+Kind-hearted, Left-handed, Negotiate, Nonetheless, Part-time, Passer-by,
+Phenomenon, Privilege, Prohibit, Regardless, Straightforward, Taxpayer
