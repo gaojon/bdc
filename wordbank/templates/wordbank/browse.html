@@ -4,38 +4,39 @@
 
 {% block content %}
 <h1>{{ word_bank.name }}</h1>
-<p><strong>{{ total }}</strong> words{% if status %} | showing {{ entries|length }} {{ status_label }}{% endif %} | <a href="{% url 'wordbank:manage' %}">← Back to Word Banks</a></p>
+<p><strong>{{ total }}</strong> words{% if statuses %} | showing {{ entries|length }} {{ status_labels|join:"/" }}{% endif %} | <a href="{% url 'wordbank:manage' %}">← Back to Word Banks</a></p>
 
 <!-- Sticky bar: batch toolbar + alphabet quick-jump (one letter rendered per page load) -->
 <div style="position:sticky;top:0;z-index:10;background:var(--pico-background-color);padding:0.5em 0;border-bottom:1px solid var(--pico-muted-border-color);margin-bottom:1em;">
-    <!-- Batch toolbar: select all + master selected -->
-    <form id="batch-master-form" method="post" action="{% url 'wordbank:master_selected' word_bank.id %}"
-          style="display:flex;align-items:center;gap:1.2em;margin:0 0 0.5em 0;">
-        {% csrf_token %}
-        <input type="hidden" name="letter" value="{{ letter }}">
-        <input type="hidden" name="status" value="{{ status }}">
-        <label style="margin:0;display:flex;align-items:center;gap:0.4em;font-weight:bold;">
-            <input type="checkbox" id="select-all">
-            Select All
-        </label>
-        <button type="submit" class="master-selected-btn" style="margin:0;padding:0.3em 0.9em;font-size:0.85rem;background:#059669;border-color:#059669;color:#fff;">
-            Master Selected (<span class="sel-count">0</span>)
-        </button>
-        <span style="font-size:0.8rem;color:var(--pico-muted-color);">Batch-mark the checked words as mastered</span>
-    </form>
-    <!-- Status filter: narrows the current letter to one learning status -->
-    <form method="get" action="" style="display:flex;align-items:center;gap:0.6em;margin:0 0 0.5em 0;">
-        <input type="hidden" name="letter" value="{{ letter }}">
-        <label for="status-filter" style="margin:0;font-weight:bold;font-size:0.85rem;">Status:</label>
-        <select id="status-filter" name="status" onchange="this.form.submit()"
-                style="padding:0.2em 0.4em;font-size:0.85rem;">
-            <option value="" {% if not status %}selected{% endif %}>All</option>
-            <option value="mastered" {% if status == "mastered" %}selected{% endif %}>Mastered</option>
-            <option value="learning" {% if status == "learning" %}selected{% endif %}>Learning</option>
-            <option value="review" {% if status == "review" %}selected{% endif %}>Reviewing</option>
-            <option value="new" {% if status == "new" %}selected{% endif %}>New</option>
-        </select>
-    </form>
+    <!-- Toolbar row: batch select-all + Master Selected + status filter -->
+    <div style="display:flex;align-items:center;gap:1.2em;flex-wrap:wrap;margin:0 0 0.5em 0;">
+        <form id="batch-master-form" method="post" action="{% url 'wordbank:master_selected' word_bank.id %}"
+              style="display:flex;align-items:center;gap:1.2em;margin:0;">
+            {% csrf_token %}
+            <input type="hidden" name="letter" value="{{ letter }}">
+            {% for s in statuses %}<input type="hidden" name="status" value="{{ s }}">{% endfor %}
+            <label style="margin:0;display:flex;align-items:center;gap:0.4em;font-weight:bold;">
+                <input type="checkbox" id="select-all">
+                Select All
+            </label>
+            <button type="submit" class="master-selected-btn" style="margin:0;padding:0.3em 0.9em;font-size:0.85rem;background:#059669;border-color:#059669;color:#fff;">
+                Master Selected (<span class="sel-count">0</span>)
+            </button>
+        </form>
+        <!-- Status filter: multi-select checkboxes, re-filter on change -->
+        <form method="get" action="" style="display:flex;align-items:center;gap:0.6em;margin:0;">
+            <input type="hidden" name="letter" value="{{ letter }}">
+            <label style="margin:0;font-weight:bold;font-size:0.85rem;">Status:</label>
+            {% for value, label in status_choices %}
+            <label style="margin:0;display:flex;align-items:center;gap:0.3em;font-size:0.85rem;">
+                <input type="checkbox" name="status" value="{{ value }}"
+                       {% if value in statuses %}checked{% endif %}
+                       onchange="this.form.submit()">
+                {{ label }}
+            </label>
+            {% endfor %}
+        </form>
+    </div>
     <!-- Alphabet quick-jump -->
     <nav style="padding:0;border:none;margin:0;">
         {% for l in letters %}
@@ -130,7 +131,7 @@
     </tbody>
 </table>
 {% else %}
-<p>{% if status %}No {{ status_label }} words starting with "{{ letter }}".{% else %}No words starting with "{{ letter }}".{% endif %}</p>
+<p>{% if statuses %}No words match the selected status filters.{% else %}No words starting with "{{ letter }}".{% endif %}</p>
 {% endif %}
 {% else %}
 <p>No words in this bank. Import a CSV to get started.</p>

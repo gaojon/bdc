@@ -41,6 +41,22 @@ class MasterSelectedWordsTest(TestCase):
         self.assertNotIn(self.words[2].id, statuses)  # unselected word untouched
         self.assertIn("letter=A", resp.url)  # redirect preserves the letter
 
+    def test_redirect_preserves_multi_status_filter(self):
+        c = Client()
+        c.force_login(self.user)
+        resp = c.post(
+            reverse("wordbank:master_selected", args=[self.bank.id]),
+            {
+                "word_ids": [str(self.words[0].id)],
+                "letter": "A",
+                "status": ["mastered", "learning"],
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("letter=A", resp.url)
+        self.assertIn("status=mastered", resp.url)
+        self.assertIn("status=learning", resp.url)
+
     def test_ignores_words_not_in_bank(self):
         c = Client()
         c.force_login(self.user)
@@ -130,7 +146,7 @@ class EditWordPermissionTest(TestCase):
 
 
 class BrowseStatusFilterTest(TestCase):
-    """Status filter (?status=...) narrows the current letter by user status."""
+    """Status filter (?status=..., repeatable) narrows the current letter by user status."""
 
     def setUp(self):
         self.user = User.objects.create_user(username="filterer", password="pass")
@@ -176,7 +192,7 @@ class BrowseStatusFilterTest(TestCase):
     def test_reviewing_alias_maps_to_review(self):
         resp = self._browse("reviewing")
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.context["status"], "review")
+        self.assertEqual(resp.context["statuses"], ["review"])
 
     def test_unknown_status_is_ignored(self):
         c = Client()
@@ -186,8 +202,23 @@ class BrowseStatusFilterTest(TestCase):
             {"letter": "A", "status": "bogus"},
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.context["status"], "")
+        self.assertEqual(resp.context["statuses"], [])
         self.assertEqual(len(resp.context["entries"]), 3)
+
+    def test_multiple_statuses_are_unioned(self):
+        """?status=mastered&status=learning shows words in either state."""
+        c = Client()
+        c.force_login(self.user)
+        resp = c.get(
+            reverse("wordbank:browse", args=[self.bank.id]),
+            {"letter": "A", "status": ["mastered", "learning"]},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["statuses"], ["mastered", "learning"])
+        self.assertEqual(
+            {e["word"] for e in resp.context["entries"]},
+            {"alpha", "actor"},
+        )
 
 
 class ImportCsvPermissionTest(TestCase):

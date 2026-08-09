@@ -19,6 +19,15 @@ from utils.constants import WordStatus
 from wordbank.models import Word, WordBank, WordBankEntry
 from wordbank.services import import_csv_to_bank
 
+# Status filter choices (value -> label) shown in the browse toolbar.
+STATUS_LABELS = {
+    "mastered": "Mastered",
+    "learning": "Learning",
+    "review": "Reviewing",
+    "new": "New",
+}
+STATUS_CHOICES = list(STATUS_LABELS.items())
+
 
 @login_required
 def manage(request):
@@ -86,19 +95,12 @@ def browse(request, bank_id):
     if letter not in letters:
         letter = letters[0] if letters else ""
 
-    # Optional status filter (mastered / learning / review / new), applied
-    # together with the letter within the current user's view.
-    STATUS_LABELS = {
-        "mastered": "Mastered",
-        "learning": "Learning",
-        "review": "Reviewing",
-        "new": "New",
-    }
-    status = request.GET.get("status", "")
-    if status == "reviewing":
-        status = "review"
-    if status not in STATUS_LABELS:
-        status = ""
+    # Optional multi-select status filter: words matching ANY selected status
+    # are shown, combined with the current letter.
+    statuses = request.GET.getlist("status")
+    statuses = [("review" if s == "reviewing" else s) for s in statuses]
+    statuses = [s for s in statuses if s in STATUS_LABELS]
+    statuses = list(dict.fromkeys(statuses))  # de-duplicate, keep order
 
     if letter == "#":
         letter_words = words_qs.filter(word="")
@@ -128,6 +130,13 @@ def browse(request, bank_id):
             w.word.lower() in mastered_texts
             or word_status == WordStatus.MASTERED
         )
+        # The badge a row would show, used for the status filter.
+        if is_mastered:
+            display_status = "mastered"
+        elif word_status in ("review", "learning"):
+            display_status = word_status
+        else:
+            display_status = "new"
         entries.append({
             "id": w.id,
             "word": w.word,
@@ -136,24 +145,20 @@ def browse(request, bank_id):
             "is_phrase": w.is_phrase,
             "status": word_status,
             "is_mastered": is_mastered,
+            "display_status": display_status,
         })
 
     # Filter by status, matching the badge shown for each word
-    if status == "mastered":
-        entries = [e for e in entries if e["is_mastered"]]
-    elif status == "review":
-        entries = [e for e in entries if not e["is_mastered"] and e["status"] == "review"]
-    elif status == "learning":
-        entries = [e for e in entries if not e["is_mastered"] and e["status"] == "learning"]
-    elif status == "new":
-        entries = [e for e in entries if not e["is_mastered"] and e["status"] == "new"]
+    if statuses:
+        entries = [e for e in entries if e["display_status"] in statuses]
 
     context = {
         "word_bank": word_bank,
         "letters": letters,
         "letter": letter,
-        "status": status,
-        "status_label": STATUS_LABELS.get(status, ""),
+        "statuses": statuses,
+        "status_labels": [STATUS_LABELS[s] for s in statuses],
+        "status_choices": STATUS_CHOICES,
         "entries": entries,
         "total": words_qs.count(),
     }
@@ -264,14 +269,15 @@ def master_selected_words(request, bank_id):
     # Preserve the current letter and status filter across the redirect
     params = {}
     letter = request.POST.get("letter", "")
-    status = request.POST.get("status", "")
+    statuses = request.POST.getlist("status")
     if letter:
         params["letter"] = letter
-    if status:
-        params["status"] = status
+    if statuses:
+        params["status"] = statuses
     url = reverse("wordbank:browse", args=[bank_id])
     if params:
-        url += "?" + urlencode(params)
+        # doseq=True expands list values into repeated ?status=...&status=...
+        url += "?" + urlencode(params, doseq=True)
     return redirect(url)
 
 
