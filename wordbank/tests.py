@@ -195,6 +195,8 @@ class BrowseStatusFilterTest(TestCase):
         self.assertEqual(resp.context["statuses"], ["review"])
 
     def test_unknown_status_is_ignored(self):
+        """An unknown ?status= value is dropped and the default (all selected)
+        applies, so every word is still shown."""
         c = Client()
         c.force_login(self.user)
         resp = c.get(
@@ -202,8 +204,34 @@ class BrowseStatusFilterTest(TestCase):
             {"letter": "A", "status": "bogus"},
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.context["statuses"], [])
+        self.assertEqual(resp.context["statuses"], ["mastered", "learning", "review", "new"])
         self.assertEqual(len(resp.context["entries"]), 3)
+
+    def test_default_status_is_all_selected(self):
+        """Browsing with no ?status= selects every status, i.e. shows all words
+        and does not label the list as a filtered subset."""
+        c = Client()
+        c.force_login(self.user)
+        resp = c.get(reverse("wordbank:browse", args=[self.bank.id]), {"letter": "A"})
+        self.assertEqual(resp.context["statuses"], ["mastered", "learning", "review", "new"])
+        self.assertFalse(resp.context["filter_active"])
+        self.assertEqual(len(resp.context["entries"]), 3)
+        # The showing-count span renders empty when every status is selected.
+        self.assertRegex(resp.content.decode(), r'id="showing-count">\s*</span>')
+
+    def test_letter_links_preserve_status(self):
+        """Alphabet quick-jump hrefs carry the selected statuses so navigating
+        letters keeps the filter."""
+        c = Client()
+        c.force_login(self.user)
+        resp = c.get(
+            reverse("wordbank:browse", args=[self.bank.id]),
+            {"letter": "A", "status": "learning"},
+        )
+        hrefs = re.findall(r'href="\?letter=([A-Z#])([^"]*)"', resp.content.decode())
+        self.assertTrue(hrefs)
+        for letter, qs in hrefs:
+            self.assertIn("status=learning", qs)
 
     def test_multiple_statuses_are_unioned(self):
         """?status=mastered&status=learning shows words in either state."""

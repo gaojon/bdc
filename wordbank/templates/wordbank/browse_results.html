@@ -63,7 +63,7 @@ the toolbar and page never reload.{% endcomment %}
         </tbody>
     </table>
     {% else %}
-    <p>{% if statuses %}No words match the selected status filters.{% else %}No words starting with "{{ letter }}".{% endif %}</p>
+    <p>{% if filter_active %}No words match the selected status filters.{% else %}No words starting with "{{ letter }}".{% endif %}</p>
     {% endif %}
 {% else %}
     <p>No words in this bank. Import a CSV to get started.</p>

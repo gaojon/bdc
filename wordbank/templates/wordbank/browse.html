@@ -38,10 +38,11 @@
             {% endfor %}
         </form>
     </div>
-    <!-- Alphabet quick-jump -->
+    <!-- Alphabet quick-jump (links carry the current status filter) -->
     <nav style="padding:0;border:none;margin:0;">
         {% for l in letters %}
-        <a href="?letter={{ l }}"
+        <a class="alphabet-link" data-letter="{{ l }}"
+           href="?letter={{ l }}{% for s in statuses %}&amp;status={{ s }}{% endfor %}"
            {% if l == letter %}style="display:inline-block;min-width:1.8em;text-align:center;font-weight:bold;padding:2px 4px;margin:0 1px;background:var(--pico-primary);color:#fff;border-radius:4px;"
            {% else %}style="display:inline-block;min-width:1.8em;text-align:center;font-weight:bold;padding:2px 4px;margin:0 1px;"
            {% endif %}>{{ l }}</a>
@@ -163,7 +164,25 @@ function syncBatchFormStatus() {
     }
 }
 
+// Keep the alphabet quick-jump hrefs in sync with the selected statuses so
+// switching letters preserves the filter without a server round-trip.
+function updateLetterLinks() {
+    const params = new URLSearchParams();
+    for (const cb of statusChecks) {
+        if (cb.checked) params.append('status', cb.value);
+    }
+    const qs = params.toString();
+    document.querySelectorAll('a.alphabet-link').forEach(a => {
+        a.href = '?letter=' + a.dataset.letter + (qs ? '&' + qs : '');
+    });
+}
+
 async function applyStatusFilter() {
+    // Unchecking every box means "show everything" (= the default), so snap
+    // the checkboxes back to all selected rather than filtering to nothing.
+    if (!statusChecks.some(cb => cb.checked)) {
+        statusChecks.forEach(cb => cb.checked = true);
+    }
     // Keep the batch-master form's hidden statuses in sync even if the fetch
     // below fails, so Master Selected still preserves this filter.
     syncBatchFormStatus();
@@ -174,6 +193,7 @@ async function applyStatusFilter() {
         if (cb.checked) params.append('status', cb.value);
     }
     params.set('partial', '1');
+    updateLetterLinks();
 
     // Reflect the filter in the address bar without navigating (shareable URL).
     const visible = new URLSearchParams(params);

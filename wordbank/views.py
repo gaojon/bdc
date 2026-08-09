@@ -96,11 +96,14 @@ def browse(request, bank_id):
         letter = letters[0] if letters else ""
 
     # Optional multi-select status filter: words matching ANY selected status
-    # are shown, combined with the current letter.
+    # are shown, combined with the current letter. With no ?status= the default
+    # is "all statuses selected" (shows every word); any subset filters.
     statuses = request.GET.getlist("status")
     statuses = [("review" if s == "reviewing" else s) for s in statuses]
     statuses = [s for s in statuses if s in STATUS_LABELS]
     statuses = list(dict.fromkeys(statuses))  # de-duplicate, keep order
+    if not statuses:
+        statuses = list(STATUS_LABELS)
 
     if letter == "#":
         letter_words = words_qs.filter(word="")
@@ -159,6 +162,9 @@ def browse(request, bank_id):
         "statuses": statuses,
         "status_labels": [STATUS_LABELS[s] for s in statuses],
         "status_choices": STATUS_CHOICES,
+        # True only when the user has narrowed to a proper subset of statuses;
+        # the default (all selected) shows every word and hides the filter note.
+        "filter_active": len(statuses) < len(STATUS_LABELS),
         "entries": entries,
         "total": words_qs.count(),
     }
