@@ -127,3 +127,94 @@ class EditWordPermissionTest(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.word.refresh_from_db()
         self.assertEqual(self.word.word, "alpha2")
+
+
+class BrowseStatusFilterTest(TestCase):
+    """Status filter (?status=...) narrows the current letter by user status."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="filterer", password="pass")
+        self.bank = WordBank.objects.create(name="FilterBank")
+        self.mastered_word = Word.objects.create(word="alpha", part_of_speech="n")
+        self.learning_word = Word.objects.create(word="actor", part_of_speech="n")
+        self.new_word = Word.objects.create(word="angle", part_of_speech="n")
+        for w in [self.mastered_word, self.learning_word, self.new_word]:
+            WordBankEntry.objects.create(word_bank=self.bank, word=w)
+        UserWordStatus.objects.create(
+            user=self.user, word=self.mastered_word, status=WordStatus.MASTERED
+        )
+        UserWordStatus.objects.create(
+            user=self.user, word=self.learning_word, status=WordStatus.LEARNING
+        )
+
+    def _browse(self, status):
+        c = Client()
+        c.force_login(self.user)
+        return c.get(
+            reverse("wordbank:browse", args=[self.bank.id]),
+            {"letter": "A", "status": status},
+        )
+
+    def test_mastered_filter_shows_only_mastered(self):
+        resp = self._browse("mastered")
+        self.assertEqual(
+            [e["word"] for e in resp.context["entries"]], ["alpha"]
+        )
+
+    def test_learning_filter_shows_only_learning(self):
+        resp = self._browse("learning")
+        self.assertEqual(
+            [e["word"] for e in resp.context["entries"]], ["actor"]
+        )
+
+    def test_new_filter_shows_only_unrecorded(self):
+        resp = self._browse("new")
+        self.assertEqual(
+            [e["word"] for e in resp.context["entries"]], ["angle"]
+        )
+
+    def test_reviewing_alias_maps_to_review(self):
+        resp = self._browse("reviewing")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["status"], "review")
+
+    def test_unknown_status_is_ignored(self):
+        c = Client()
+        c.force_login(self.user)
+        resp = c.get(
+            reverse("wordbank:browse", args=[self.bank.id]),
+            {"letter": "A", "status": "bogus"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["status"], "")
+        self.assertEqual(len(resp.context["entries"]), 3)
+
+
+class ImportCsvPermissionTest(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser("boss3", "b@x.com", "pass")
+        self.regular = User.objects.create_user("user3", password="pass")
+        self.bank = WordBank.objects.create(name="ImportBank")
+        WordBankEntry.objects.create(
+            word_bank=self.bank,
+            word=Word.objects.create(word="anchor", part_of_speech="n"),
+        )
+
+    def test_regular_user_sees_no_import_section(self):
+        c = Client()
+        c.force_login(self.regular)
+        resp = c.get(reverse("wordbank:browse", args=[self.bank.id]), {"letter": "A"})
+        self.assertNotContains(resp, "Import CSV")
+
+    def test_admin_sees_import_section(self):
+        c = Client()
+        c.force_login(self.admin)
+        resp = c.get(reverse("wordbank:browse", args=[self.bank.id]), {"letter": "A"})
+        self.assertContains(resp, "Import CSV")
+
+    def test_regular_user_cannot_import(self):
+        c = Client()
+        c.force_login(self.regular)
+        resp = c.post(reverse("wordbank:import_csv", args=[self.bank.id]), {})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, reverse("wordbank:manage"))

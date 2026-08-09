@@ -86,6 +86,20 @@ def browse(request, bank_id):
     if letter not in letters:
         letter = letters[0] if letters else ""
 
+    # Optional status filter (mastered / learning / review / new), applied
+    # together with the letter within the current user's view.
+    STATUS_LABELS = {
+        "mastered": "Mastered",
+        "learning": "Learning",
+        "review": "Reviewing",
+        "new": "New",
+    }
+    status = request.GET.get("status", "")
+    if status == "reviewing":
+        status = "review"
+    if status not in STATUS_LABELS:
+        status = ""
+
     if letter == "#":
         letter_words = words_qs.filter(word="")
     elif letter:
@@ -108,23 +122,38 @@ def browse(request, bank_id):
 
     entries = []
     for w in words:
-        status = user_statuses.get(w.id, "new")
+        word_status = user_statuses.get(w.id, "new")
         # Cross-bank: word is mastered if its text is mastered in any bank
-        is_mastered = w.word.lower() in mastered_texts or status == WordStatus.MASTERED
+        is_mastered = (
+            w.word.lower() in mastered_texts
+            or word_status == WordStatus.MASTERED
+        )
         entries.append({
             "id": w.id,
             "word": w.word,
             "part_of_speech": w.part_of_speech,
             "definition": w.definition,
             "is_phrase": w.is_phrase,
-            "status": status,
+            "status": word_status,
             "is_mastered": is_mastered,
         })
+
+    # Filter by status, matching the badge shown for each word
+    if status == "mastered":
+        entries = [e for e in entries if e["is_mastered"]]
+    elif status == "review":
+        entries = [e for e in entries if not e["is_mastered"] and e["status"] == "review"]
+    elif status == "learning":
+        entries = [e for e in entries if not e["is_mastered"] and e["status"] == "learning"]
+    elif status == "new":
+        entries = [e for e in entries if not e["is_mastered"] and e["status"] == "new"]
 
     context = {
         "word_bank": word_bank,
         "letters": letters,
         "letter": letter,
+        "status": status,
+        "status_label": STATUS_LABELS.get(status, ""),
         "entries": entries,
         "total": words_qs.count(),
     }
@@ -232,10 +261,17 @@ def master_selected_words(request, bank_id):
     else:
         messages.warning(request, "No words were changed (none selected or already mastered).")
 
+    # Preserve the current letter and status filter across the redirect
+    params = {}
     letter = request.POST.get("letter", "")
-    url = reverse("wordbank:browse", args=[bank_id])
+    status = request.POST.get("status", "")
     if letter:
-        url += "?" + urlencode({"letter": letter})
+        params["letter"] = letter
+    if status:
+        params["status"] = status
+    url = reverse("wordbank:browse", args=[bank_id])
+    if params:
+        url += "?" + urlencode(params)
     return redirect(url)
 
 
@@ -282,7 +318,10 @@ def delete_word(request, word_id):
 
 @login_required
 def import_csv(request, bank_id):
-    """Import words from a CSV file into a word bank."""
+    """Import words from a CSV file into a word bank (superuser only)."""
+    if not request.user.is_superuser:
+        messages.error(request, "Access denied.")
+        return redirect("wordbank:manage")
     word_bank = get_object_or_404(WordBank, id=bank_id)
 
     if request.method == "POST":

@@ -4,7 +4,7 @@
 
 {% block content %}
 <h1>{{ word_bank.name }}</h1>
-<p><strong>{{ total }}</strong> words | <a href="{% url 'wordbank:manage' %}">← Back to Word Banks</a></p>
+<p><strong>{{ total }}</strong> words{% if status %} | showing {{ entries|length }} {{ status_label }}{% endif %} | <a href="{% url 'wordbank:manage' %}">← Back to Word Banks</a></p>
 
 <!-- Sticky bar: batch toolbar + alphabet quick-jump (one letter rendered per page load) -->
 <div style="position:sticky;top:0;z-index:10;background:var(--pico-background-color);padding:0.5em 0;border-bottom:1px solid var(--pico-muted-border-color);margin-bottom:1em;">
@@ -13,6 +13,7 @@
           style="display:flex;align-items:center;gap:1.2em;margin:0 0 0.5em 0;">
         {% csrf_token %}
         <input type="hidden" name="letter" value="{{ letter }}">
+        <input type="hidden" name="status" value="{{ status }}">
         <label style="margin:0;display:flex;align-items:center;gap:0.4em;font-weight:bold;">
             <input type="checkbox" id="select-all">
             Select All
@@ -21,6 +22,19 @@
             Master Selected (<span class="sel-count">0</span>)
         </button>
         <span style="font-size:0.8rem;color:var(--pico-muted-color);">Batch-mark the checked words as mastered</span>
+    </form>
+    <!-- Status filter: narrows the current letter to one learning status -->
+    <form method="get" action="" style="display:flex;align-items:center;gap:0.6em;margin:0 0 0.5em 0;">
+        <input type="hidden" name="letter" value="{{ letter }}">
+        <label for="status-filter" style="margin:0;font-weight:bold;font-size:0.85rem;">Status:</label>
+        <select id="status-filter" name="status" onchange="this.form.submit()"
+                style="padding:0.2em 0.4em;font-size:0.85rem;">
+            <option value="" {% if not status %}selected{% endif %}>All</option>
+            <option value="mastered" {% if status == "mastered" %}selected{% endif %}>Mastered</option>
+            <option value="learning" {% if status == "learning" %}selected{% endif %}>Learning</option>
+            <option value="review" {% if status == "review" %}selected{% endif %}>Reviewing</option>
+            <option value="new" {% if status == "new" %}selected{% endif %}>New</option>
+        </select>
     </form>
     <!-- Alphabet quick-jump -->
     <nav style="padding:0;border:none;margin:0;">
@@ -35,6 +49,7 @@
 
 <hr>
 
+{% if user.is_superuser %}
 <!-- Import CSV -->
 <details>
     <summary>Import CSV</summary>
@@ -47,6 +62,7 @@
         <button type="submit">Import</button>
     </form>
 </details>
+{% endif %}
 
 {% if user.is_superuser %}
 <p>
@@ -114,7 +130,7 @@
     </tbody>
 </table>
 {% else %}
-<p>No words starting with "{{ letter }}".</p>
+<p>{% if status %}No {{ status_label }} words starting with "{{ letter }}".{% else %}No words starting with "{{ letter }}".{% endif %}</p>
 {% endif %}
 {% else %}
 <p>No words in this bank. Import a CSV to get started.</p>
