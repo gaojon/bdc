@@ -133,7 +133,10 @@ def browse(request, bank_id):
 
 @login_required
 def edit_word(request, word_id):
-    """Edit a single word (POST only)."""
+    """Edit a single word (superuser only, POST only)."""
+    if not request.user.is_superuser:
+        messages.error(request, "Access denied.")
+        return redirect("wordbank:manage")
     if request.method != "POST":
         return redirect("wordbank:manage")
 
@@ -147,7 +150,7 @@ def edit_word(request, word_id):
     word.save()
 
     messages.success(request, f"Updated: {word.word}")
-    return redirect("wordbank:browse", bank_id=word.word_bank_id)
+    return _word_browse_redirect(request, word)
 
 
 def _word_browse_redirect(request, word):
@@ -260,12 +263,21 @@ def delete_word(request, word_id):
         return redirect("wordbank:manage")
 
     word = get_object_or_404(Word, id=word_id)
-    bank_id = word.word_bank_id
     word_text = word.word
+    # Resolve the redirect target before deleting: the bridge rows cascade away
+    # with the word, so we cannot query them afterwards.
+    referer = request.META.get("HTTP_REFERER", "")
+    if "/bank/" in referer:
+        url = referer
+    else:
+        bank_id = WordBankEntry.objects.filter(word=word).values_list(
+            "word_bank_id", flat=True
+        ).first()
+        url = reverse("wordbank:browse", args=[bank_id or 0])
     word.delete()
 
     messages.success(request, f"Deleted: {word_text}")
-    return redirect("wordbank:browse", bank_id=bank_id)
+    return redirect(url)
 
 
 @login_required

@@ -88,9 +88,11 @@
                 {% endif %}
             </td>
             <td style="white-space:nowrap;">
+                {% if user.is_superuser %}
                 <button type="button"
                         onclick="editWord({{ entry.id }})"
                         style="margin:0; padding:2px 8px; font-size:0.8rem;">Edit</button>
+                {% endif %}
                 {% if entry.is_mastered %}
                 <form method="post" action="{% url 'wordbank:unmaster_word' entry.id %}"
                       style="display:inline;">

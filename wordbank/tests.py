@@ -82,3 +82,48 @@ class MasterSelectedWordsTest(TestCase):
         self.assertIsNotNone(checkbox)
         self.assertRegex(checkbox.group(1), r'\bname="word_ids"')
         self.assertRegex(checkbox.group(1), r'\bform="batch-master-form"')
+
+
+class EditWordPermissionTest(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser("boss", "b@x.com", "pass")
+        self.regular = User.objects.create_user("user1", password="pass")
+        self.bank = WordBank.objects.create(name="Bank")
+        self.word = Word.objects.create(word="alpha", definition="n. alpha")
+        WordBankEntry.objects.create(word_bank=self.bank, word=self.word)
+
+    def test_regular_user_sees_no_edit_button(self):
+        c = Client()
+        c.force_login(self.regular)
+        resp = c.get(reverse("wordbank:browse", args=[self.bank.id]), {"letter": "A"})
+        self.assertNotContains(resp, ">Edit</button>")
+
+    def test_admin_sees_edit_button(self):
+        c = Client()
+        c.force_login(self.admin)
+        resp = c.get(reverse("wordbank:browse", args=[self.bank.id]), {"letter": "A"})
+        self.assertContains(resp, ">Edit</button>")
+
+    def test_regular_user_cannot_edit_via_post(self):
+        c = Client()
+        c.force_login(self.regular)
+        resp = c.post(
+            reverse("wordbank:edit_word", args=[self.word.id]),
+            {"word": "hacked", "definition": "n. hacked"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, reverse("wordbank:manage"))
+        self.word.refresh_from_db()
+        self.assertEqual(self.word.word, "alpha")  # unchanged
+        self.assertEqual(self.word.definition, "n. alpha")
+
+    def test_admin_can_edit_via_post(self):
+        c = Client()
+        c.force_login(self.admin)
+        resp = c.post(
+            reverse("wordbank:edit_word", args=[self.word.id]),
+            {"word": "alpha2", "definition": "n. beta"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.word.refresh_from_db()
+        self.assertEqual(self.word.word, "alpha2")
