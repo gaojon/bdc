@@ -57,6 +57,30 @@ class MasterSelectedWordsTest(TestCase):
         self.assertIn("status=mastered", resp.url)
         self.assertIn("status=learning", resp.url)
 
+    def test_redirect_preserves_select_all(self):
+        c = Client()
+        c.force_login(self.user)
+        resp = c.post(
+            reverse("wordbank:master_selected", args=[self.bank.id]),
+            {
+                "word_ids": [str(self.words[0].id)],
+                "letter": "A",
+                "select_all": "1",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("select_all=1", resp.url)
+
+    def test_redirect_omits_select_all_when_off(self):
+        c = Client()
+        c.force_login(self.user)
+        resp = c.post(
+            reverse("wordbank:master_selected", args=[self.bank.id]),
+            {"word_ids": [str(self.words[0].id)], "letter": "A"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertNotIn("select_all", resp.url)
+
     def test_ignores_words_not_in_bank(self):
         c = Client()
         c.force_login(self.user)

@@ -16,7 +16,9 @@
             <input type="hidden" name="letter" value="{{ letter }}">
             {% for s in statuses %}<input type="hidden" name="status" value="{{ s }}">{% endfor %}
             <label style="margin:0;display:flex;align-items:center;gap:0.4em;font-weight:bold;">
-                <input type="checkbox" id="select-all">
+                <!-- name/value let this checkbox submit select_all=1 with the
+                     batch form, so the server can keep it across the redirect -->
+                <input type="checkbox" id="select-all" name="select_all" value="1">
                 Select All
             </label>
             <button type="submit" class="master-selected-btn" style="margin:0;padding:0.3em 0.9em;font-size:0.85rem;background:#059669;border-color:#059669;color:#fff;">

@@ -276,7 +276,8 @@ def master_selected_words(request, bank_id):
     else:
         messages.warning(request, "No words were changed (none selected or already mastered).")
 
-    # Preserve the current letter and status filter across the redirect
+    # Preserve the current letter, status filter, and Select All state across
+    # the redirect so the page comes back exactly as the user left it.
     params = {}
     letter = request.POST.get("letter", "")
     statuses = request.POST.getlist("status")
@@ -284,6 +285,8 @@ def master_selected_words(request, bank_id):
         params["letter"] = letter
     if statuses:
         params["status"] = statuses
+    if request.POST.get("select_all"):
+        params["select_all"] = "1"
     url = reverse("wordbank:browse", args=[bank_id])
     if params:
         # doseq=True expands list values into repeated ?status=...&status=...
