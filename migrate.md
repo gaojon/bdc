@@ -26,8 +26,10 @@
 | 应用路径 | `/home/opc/bdc/` |
 | 数据库文件 | `/home/opc/bdc/db.sqlite3` |
 | 配置文件 | `/home/opc/bdc/config/app_config.json` |
-| 监听端口 | `80` |
-| WSGI 服务器 | Gunicorn（2 workers） |
+| 对外访问 | `https://bdc8.cc.cd`（HTTP 自动跳转 HTTPS） |
+| 反向代理 | nginx（80/443，TLS 终止；证书 Let's Encrypt 自动续期） |
+| WSGI 服务器 | Gunicorn（2 workers，监听 `127.0.0.1:8000`，仅内网） |
+| 启动脚本 | `/home/opc/bdc/start.sh`（含环境变量，gitignored） |
 | 进程管理 | PID 文件 `/home/opc/bdc/gunicorn.pid` |
 
 ### 管理员凭据
@@ -105,18 +107,37 @@ User.objects.create_superuser('admin', password='admin123456')
 python3.12 manage.py seed_interests
 ```
 
-### 2.6 配置防火墙
+### 2.6 配置 nginx / HTTPS / 防火墙
 
-> 端口 80 是特权端口（<1024），需先授权普通用户 `opc` 绑定，再开放防火墙：
+> 对外架构：`nginx`（root 监听 80/443，TLS 终止）→ 反代 → `gunicorn`（`127.0.0.1:8000`，仅内网）。
 
 ```bash
-# 允许非 root 进程绑定 80 端口（每次系统/内核更新后可能需要重做）
-sudo setcap 'cap_net_bind_service=+ep' /usr/bin/python3.12
+# 1) 安装 nginx 与 certbot（EPEL 走 Oracle 自带仓库）
+sudo dnf install -y nginx
+sudo dnf config-manager --set-enabled ol9_developer_EPEL
+sudo dnf install -y certbot python3-certbot-nginx
 
-# 开放 80，关闭旧的 8000
+# 2) SELinux：允许 nginx 反代到内网后端端口（否则 502 Permission denied）
+sudo setsebool -P httpd_can_network_connect 1
+
+# 3) OS 防火墙：开放 80 / 443
 sudo firewall-cmd --add-port=80/tcp --permanent
-sudo firewall-cmd --remove-port=8000/tcp --permanent
+sudo firewall-cmd --add-port=443/tcp --permanent
 sudo firewall-cmd --reload
+```
+
+> ⚠️ **OCI 控制台（VCN 安全列表）还需放行公网 443 入站**：Networking → Virtual cloud networks → 子网 → Security Lists → 默认安全列表 → Add Ingress Rules（TCP，目标端口 `443`，源 `0.0.0.0/0`）。OS 防火墙之外这层不放开，公网无法访问 HTTPS。
+
+### 2.7 首次签发证书
+
+```bash
+# 写好 nginx vhost（/etc/nginx/conf.d/bdc8.cc.cd.conf，80 反代 127.0.0.1:8000）
+# 文件若从 /tmp 移入，需刷新 SELinux 上下文：sudo restorecon /etc/nginx/conf.d/bdc8.cc.cd.conf
+sudo systemctl enable --now nginx
+
+# 签发证书（HTTP-01 走 80），自动配置 443 + HTTP→HTTPS 跳转
+sudo certbot --nginx -d bdc8.cc.cd --register-unsafely-without-email --redirect
+sudo systemctl enable --now certbot-renew.timer   # 自动续期
 ```
 
 ---
@@ -125,15 +146,24 @@ sudo firewall-cmd --reload
 
 ### 3.1 启动服务（Gunicorn 守护进程）
 
+> 通过 `start.sh` 启动。该脚本为 **gitignored** 文件，内含 `DJANGO_SECRET_KEY`，不提交版本库；内容为 export 环境变量后启动 gunicorn：
+
 ```bash
 cd /home/opc/bdc
-python3.12 -m gunicorn config.wsgi:application \
-    --bind 0.0.0.0:80 \
-    --workers 2 \
-    --daemon \
-    --access-logfile /home/opc/bdc/access.log \
-    --error-logfile /home/opc/bdc/error.log \
+cat > start.sh <<'SH'
+#!/bin/bash
+set -e
+cd /home/opc/bdc
+export DJANGO_DEBUG=false
+export DJANGO_SECRET_KEY="<由 python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())' 生成>"
+export DJANGO_ALLOWED_HOSTS="bdc8.cc.cd,localhost,127.0.0.1,129.146.153.133"
+export DJANGO_BEHIND_PROXY=1
+exec python3.12 -m gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 2 --daemon \
+    --access-logfile /home/opc/bdc/access.log --error-logfile /home/opc/bdc/error.log \
     --pid /home/opc/bdc/gunicorn.pid
+SH
+chmod +x start.sh
+./start.sh
 ```
 
 ### 3.2 验证服务状态
@@ -142,9 +172,10 @@ python3.12 -m gunicorn config.wsgi:application \
 # 检查进程
 cat /home/opc/bdc/gunicorn.pid
 ps aux | grep gunicorn
+systemctl status nginx --no-pager | grep Active
 
-# 外部访问测试
-curl -s -o /dev/null -w "HTTP %{http_code}" http://129.146.153.133/account/login/
+# 外部访问测试（公网 HTTPS）
+curl -s -o /dev/null -w "HTTP %{http_code}" https://bdc8.cc.cd/account/login/
 # 预期: HTTP 200
 ```
 
@@ -152,13 +183,13 @@ curl -s -o /dev/null -w "HTTP %{http_code}" http://129.146.153.133/account/login
 
 | 页面 | URL |
 |------|-----|
-| 学习主页 | `http://129.146.153.133/` |
-| 词库管理 | `http://129.146.153.133/bank/` |
-| 学习统计 | `http://129.146.153.133/stats/` |
-| 系统面板 | `http://129.146.153.133/admin/dashboard/` |
-| API 配置 | `http://129.146.153.133/admin/api-config/` |
-| 用户管理 | `http://129.146.153.133/admin/users/` |
-| Django Admin | `http://129.146.153.133/admin/` |
+| 学习主页 | `https://bdc8.cc.cd/` |
+| 词库管理 | `https://bdc8.cc.cd/bank/` |
+| 学习统计 | `https://bdc8.cc.cd/stats/` |
+| 系统面板 | `https://bdc8.cc.cd/admin/dashboard/` |
+| API 配置 | `https://bdc8.cc.cd/admin/api-config/` |
+| 用户管理 | `https://bdc8.cc.cd/admin/users/` |
+| Django Admin | `https://bdc8.cc.cd/admin/` |
 
 ---
 
@@ -170,20 +201,31 @@ curl -s -o /dev/null -w "HTTP %{http_code}" http://129.146.153.133/account/login
 kill $(cat /home/opc/bdc/gunicorn.pid)
 ```
 
+> nginx 保持运行，无需动它。
+
 ### 4.2 重启服务
 
 ```bash
 kill $(cat /home/opc/bdc/gunicorn.pid)
 sleep 2
 cd /home/opc/bdc
-python3.12 -m gunicorn config.wsgi:application \
-    --bind 0.0.0.0:80 --workers 2 --daemon \
-    --access-logfile /home/opc/bdc/access.log \
-    --error-logfile /home/opc/bdc/error.log \
-    --pid /home/opc/bdc/gunicorn.pid
+./start.sh
 ```
 
-### 4.3 查看日志
+### 4.3 HTTPS 证书运维
+
+```bash
+# 手动续期（通常由 certbot-renew.timer 每日自动执行）
+sudo certbot renew --deploy-hook "systemctl reload nginx"
+
+# 查看证书状态
+sudo certbot certificates
+
+# 查看续期定时器
+systemctl status certbot-renew.timer
+```
+
+### 4.4 查看日志
 
 ```bash
 # 访问日志
@@ -191,9 +233,12 @@ tail -f /home/opc/bdc/access.log
 
 # 错误日志
 tail -f /home/opc/bdc/error.log
+
+# nginx 日志
+sudo tail -f /var/log/nginx/access.log /var/log/nginx/error.log
 ```
 
-### 4.4 数据库备份
+### 4.5 数据库备份
 
 ```bash
 cp /home/opc/bdc/db.sqlite3 /home/opc/bdc/backups/db_$(date +%Y%m%d_%H%M%S).sqlite3
@@ -201,19 +246,19 @@ cp /home/opc/bdc/db.sqlite3 /home/opc/bdc/backups/db_$(date +%Y%m%d_%H%M%S).sqli
 
 也可通过 Admin → Dashboard → Download Backup 在线下载。
 
-### 4.5 数据库恢复
+### 4.6 数据库恢复
 
 ```bash
 cp /home/opc/bdc/backups/db_YYYYMMDD_HHMMSS.sqlite3 /home/opc/bdc/db.sqlite3
 # 然后重启服务
 ```
 
-### 4.6 修改 DeepSeek API 配置
+### 4.7 修改 DeepSeek API 配置
 
 两种方式：
 
 **方式 A — 在线编辑（推荐）**：
-访问 `http://129.146.153.133/admin/api-config/`，在表单中修改并保存。保存后自动清除配置缓存。
+访问 `https://bdc8.cc.cd/admin/api-config/`，在表单中修改并保存。保存后自动清除配置缓存。
 
 **方式 B — 直接编辑文件**：
 ```bash
@@ -230,7 +275,10 @@ vim /home/opc/bdc/config/app_config.json
 ```bash
 cd /home/opc/bdc
 
-# 停止服务
+# 必须先丢弃：该文件每次 gunicorn 启动都会被 learning/apps.py 重写
+git checkout -- version.json
+
+# 停止服务（nginx 保持运行，无需动）
 kill $(cat gunicorn.pid) 2>/dev/null
 
 # 拉取最新代码
@@ -245,15 +293,12 @@ python3.12 manage.py migrate
 # 收集静态文件
 python3.12 manage.py collectstatic --noinput
 
-# 重新启动服务
-python3.12 -m gunicorn config.wsgi:application \
-    --bind 0.0.0.0:80 --workers 2 --daemon \
-    --access-logfile /home/opc/bdc/access.log \
-    --error-logfile /home/opc/bdc/error.log \
-    --pid /home/opc/bdc/gunicorn.pid
+# 重新启动服务（start.sh 内含环境变量，gitignored，不会因 pull 丢失）
+./start.sh
 
-# 验证
-curl -s -o /dev/null -w "HTTP %{http_code}" http://localhost/account/login/
+# 验证（走 nginx → HTTPS）
+curl -s -o /dev/null -w "HTTP %{http_code}" https://bdc8.cc.cd/account/login/ --resolve bdc8.cc.cd:443:127.0.0.1
+# 预期: HTTP 200
 ```
 
 ### 5.2 一键更新脚本
@@ -265,6 +310,9 @@ curl -s -o /dev/null -w "HTTP %{http_code}" http://localhost/account/login/
 set -e
 
 cd /home/opc/bdc
+
+echo ">>> Discarding version.json..."
+git checkout -- version.json
 
 echo ">>> Stopping gunicorn..."
 kill $(cat gunicorn.pid) 2>/dev/null || true
@@ -279,15 +327,11 @@ python3.12 -m pip install -r requirements.txt --quiet
 echo ">>> Running migrations..."
 python3.12 manage.py migrate
 
-echo ">>> Starting gunicorn..."
-python3.12 -m gunicorn config.wsgi:application \
-    --bind 0.0.0.0:80 --workers 2 --daemon \
-    --access-logfile /home/opc/bdc/access.log \
-    --error-logfile /home/opc/bdc/error.log \
-    --pid /home/opc/bdc/gunicorn.pid
+echo ">>> Starting gunicorn via start.sh..."
+./start.sh
 
 sleep 1
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/account/login/)
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://bdc8.cc.cd/account/login/ --resolve bdc8.cc.cd:443:127.0.0.1)
 if [ "$HTTP_CODE" = "200" ]; then
     echo ">>> Deploy successful! (HTTP $HTTP_CODE)"
 else

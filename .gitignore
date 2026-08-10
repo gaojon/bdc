@@ -12,6 +12,10 @@ data/zone.identifier
 *.Zone.Identifier
 .bdc.log
 .bdc.pid
+start.sh
+gunicorn.pid
+access.log
+error.log
 backups/
 data/
 CLAUDE.md
