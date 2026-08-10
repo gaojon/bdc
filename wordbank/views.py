@@ -14,7 +14,7 @@ from django.db.models import Count
 from django.db.models.functions import Lower, Substr
 
 from learning.models import UserWordStatus
-from learning.services import get_mastered_texts
+from learning.services import get_accent, get_mastered_texts
 from utils.constants import WordStatus
 from wordbank.models import Word, WordBank, WordBankEntry
 from wordbank.services import import_csv_to_bank
@@ -125,6 +125,11 @@ def browse(request, bank_id):
 
     mastered_texts = get_mastered_texts(request.user)
 
+    # Single pronunciation column: show the accent chosen in the header
+    # (base.html 英式/美式 toggle, global AppSetting), falling back to the
+    # other variant when the preferred one is missing for a word.
+    accent = get_accent()
+
     entries = []
     for w in words:
         word_status = user_statuses.get(w.id, "new")
@@ -140,6 +145,10 @@ def browse(request, bank_id):
             display_status = word_status
         else:
             display_status = "new"
+        us, uk = w.pronounce_us, w.pronounce_uk
+        pronounce = us if accent == "us" else uk
+        if not pronounce:
+            pronounce = uk if accent == "us" else us
         entries.append({
             "id": w.id,
             "word": w.word,
@@ -149,6 +158,7 @@ def browse(request, bank_id):
             "status": word_status,
             "is_mastered": is_mastered,
             "display_status": display_status,
+            "pronounce": pronounce,
         })
 
     # Filter by status, matching the badge shown for each word

@@ -10,6 +10,7 @@ the toolbar and page never reload.{% endcomment %}
             <tr>
                 <th style="width:2em;"></th>
                 <th>Word</th>
+                <th>Pronunciation</th>
                 <th>Definition</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -20,6 +21,7 @@ the toolbar and page never reload.{% endcomment %}
             <tr>
                 <td><input type="checkbox" class="word-check" name="word_ids" value="{{ entry.id }}" form="batch-master-form"></td>
                 <td style="white-space:nowrap;">{{ entry.word }}</td>
+                <td style="white-space:nowrap;color:var(--pico-muted-color);">{{ entry.pronounce|default:"—" }}</td>
                 <td>{{ entry.definition }}</td>
                 <td>
                     {% if entry.is_mastered %}
