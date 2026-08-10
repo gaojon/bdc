@@ -26,7 +26,7 @@
 | 应用路径 | `/home/opc/bdc/` |
 | 数据库文件 | `/home/opc/bdc/db.sqlite3` |
 | 配置文件 | `/home/opc/bdc/config/app_config.json` |
-| 监听端口 | `8000` |
+| 监听端口 | `80` |
 | WSGI 服务器 | Gunicorn（2 workers） |
 | 进程管理 | PID 文件 `/home/opc/bdc/gunicorn.pid` |
 
@@ -107,8 +107,15 @@ python3.12 manage.py seed_interests
 
 ### 2.6 配置防火墙
 
+> 端口 80 是特权端口（<1024），需先授权普通用户 `opc` 绑定，再开放防火墙：
+
 ```bash
-sudo firewall-cmd --add-port=8000/tcp --permanent
+# 允许非 root 进程绑定 80 端口（每次系统/内核更新后可能需要重做）
+sudo setcap 'cap_net_bind_service=+ep' /usr/bin/python3.12
+
+# 开放 80，关闭旧的 8000
+sudo firewall-cmd --add-port=80/tcp --permanent
+sudo firewall-cmd --remove-port=8000/tcp --permanent
 sudo firewall-cmd --reload
 ```
 
@@ -121,7 +128,7 @@ sudo firewall-cmd --reload
 ```bash
 cd /home/opc/bdc
 python3.12 -m gunicorn config.wsgi:application \
-    --bind 0.0.0.0:8000 \
+    --bind 0.0.0.0:80 \
     --workers 2 \
     --daemon \
     --access-logfile /home/opc/bdc/access.log \
@@ -137,7 +144,7 @@ cat /home/opc/bdc/gunicorn.pid
 ps aux | grep gunicorn
 
 # 外部访问测试
-curl -s -o /dev/null -w "HTTP %{http_code}" http://129.146.153.133:8000/account/login/
+curl -s -o /dev/null -w "HTTP %{http_code}" http://129.146.153.133/account/login/
 # 预期: HTTP 200
 ```
 
@@ -145,13 +152,13 @@ curl -s -o /dev/null -w "HTTP %{http_code}" http://129.146.153.133:8000/account/
 
 | 页面 | URL |
 |------|-----|
-| 学习主页 | `http://129.146.153.133:8000/` |
-| 词库管理 | `http://129.146.153.133:8000/bank/` |
-| 学习统计 | `http://129.146.153.133:8000/stats/` |
-| 系统面板 | `http://129.146.153.133:8000/admin/dashboard/` |
-| API 配置 | `http://129.146.153.133:8000/admin/api-config/` |
-| 用户管理 | `http://129.146.153.133:8000/admin/users/` |
-| Django Admin | `http://129.146.153.133:8000/admin/` |
+| 学习主页 | `http://129.146.153.133/` |
+| 词库管理 | `http://129.146.153.133/bank/` |
+| 学习统计 | `http://129.146.153.133/stats/` |
+| 系统面板 | `http://129.146.153.133/admin/dashboard/` |
+| API 配置 | `http://129.146.153.133/admin/api-config/` |
+| 用户管理 | `http://129.146.153.133/admin/users/` |
+| Django Admin | `http://129.146.153.133/admin/` |
 
 ---
 
@@ -170,7 +177,7 @@ kill $(cat /home/opc/bdc/gunicorn.pid)
 sleep 2
 cd /home/opc/bdc
 python3.12 -m gunicorn config.wsgi:application \
-    --bind 0.0.0.0:8000 --workers 2 --daemon \
+    --bind 0.0.0.0:80 --workers 2 --daemon \
     --access-logfile /home/opc/bdc/access.log \
     --error-logfile /home/opc/bdc/error.log \
     --pid /home/opc/bdc/gunicorn.pid
@@ -206,7 +213,7 @@ cp /home/opc/bdc/backups/db_YYYYMMDD_HHMMSS.sqlite3 /home/opc/bdc/db.sqlite3
 两种方式：
 
 **方式 A — 在线编辑（推荐）**：
-访问 `http://129.146.153.133:8000/admin/api-config/`，在表单中修改并保存。保存后自动清除配置缓存。
+访问 `http://129.146.153.133/admin/api-config/`，在表单中修改并保存。保存后自动清除配置缓存。
 
 **方式 B — 直接编辑文件**：
 ```bash
@@ -240,13 +247,13 @@ python3.12 manage.py collectstatic --noinput
 
 # 重新启动服务
 python3.12 -m gunicorn config.wsgi:application \
-    --bind 0.0.0.0:8000 --workers 2 --daemon \
+    --bind 0.0.0.0:80 --workers 2 --daemon \
     --access-logfile /home/opc/bdc/access.log \
     --error-logfile /home/opc/bdc/error.log \
     --pid /home/opc/bdc/gunicorn.pid
 
 # 验证
-curl -s -o /dev/null -w "HTTP %{http_code}" http://localhost:8000/account/login/
+curl -s -o /dev/null -w "HTTP %{http_code}" http://localhost/account/login/
 ```
 
 ### 5.2 一键更新脚本
@@ -274,13 +281,13 @@ python3.12 manage.py migrate
 
 echo ">>> Starting gunicorn..."
 python3.12 -m gunicorn config.wsgi:application \
-    --bind 0.0.0.0:8000 --workers 2 --daemon \
+    --bind 0.0.0.0:80 --workers 2 --daemon \
     --access-logfile /home/opc/bdc/access.log \
     --error-logfile /home/opc/bdc/error.log \
     --pid /home/opc/bdc/gunicorn.pid
 
 sleep 1
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/account/login/)
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/account/login/)
 if [ "$HTTP_CODE" = "200" ]; then
     echo ">>> Deploy successful! (HTTP $HTTP_CODE)"
 else

@@ -10,7 +10,8 @@ PROJECT_DIR="/home/jon/bdc"
 PROJECT_NAME="bdc"
 PID_FILE="$PROJECT_DIR/.bdc.pid"
 LOG_FILE="$PROJECT_DIR/.bdc.log"
-BIND_ADDR="0.0.0.0:8000"
+BIND_ADDR="0.0.0.0:80"
+PORT="${BIND_ADDR##*:}"
 GUNICORN="/home/jon/miniconda3/bin/gunicorn"
 WSGI_APP="config.wsgi:application"
 WORKERS=1
@@ -102,7 +103,7 @@ stop() {
     # finish in-flight requests while still holding the port. So poll until the
     # port is actually free before declaring success.
     for i in {1..10}; do
-        if ! _port_in_use 8000; then
+        if ! _port_in_use "$PORT"; then
             echo "BDC stopped."
             rm -f "$PID_FILE"
             return 0
@@ -111,8 +112,8 @@ stop() {
     done
 
     # Force kill whatever still holds the port (orphaned worker etc.)
-    echo "Port 8000 still in use after graceful stop, force killing..."
-    _kill_port_holder 8000 || true
+    echo "Port $PORT still in use after graceful stop, force killing..."
+    _kill_port_holder "$PORT" || true
     rm -f "$PID_FILE"
     echo "BDC force stopped."
 }
