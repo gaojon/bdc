@@ -8,6 +8,23 @@ from django.shortcuts import redirect, render
 from accounts.models import LoginRecord
 
 
+def get_client_ip(request) -> str:
+    """Return the real client IP, honoring the nginx -> gunicorn reverse proxy.
+
+    Gunicorn 26 no longer rewrites REMOTE_ADDR from X-Forwarded-For, so behind
+    nginx REMOTE_ADDR is always 127.0.0.1. nginx overwrites X-Real-IP with the
+    client's real address on every request (so it cannot be spoofed), and
+    appends to X-Forwarded-For — take the rightmost entry as authoritative.
+    """
+    ip = request.META.get("HTTP_X_REAL_IP")
+    if ip:
+        return ip
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if xff:
+        return xff.split(",")[-1].strip()
+    return request.META.get("REMOTE_ADDR", "")
+
+
 def login_view(request):
     """Handle user login."""
     if request.method == "POST":
@@ -19,7 +36,7 @@ def login_view(request):
             # Record login
             LoginRecord.objects.create(
                 user=user,
-                ip_address=request.META.get("REMOTE_ADDR", ""),
+                ip_address=get_client_ip(request),
             )
             next_url = request.GET.get("next", "/")
             return redirect(next_url)
