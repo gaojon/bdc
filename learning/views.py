@@ -245,14 +245,13 @@ def generate_article(request):
         ),
     )
 
-    # Get mastered words for light highlighting
+    # Get mastered words to store on the article record
     mastered_word_strings = services.get_mastered_words(request.user, word_bank)
 
     # Build highlighted HTML (targets = the filtered, un-mastered hit words)
     content_html = services.build_highlighted_html(
         article_data["content"],
         target_words=[w.word for w in hit_words],
-        mastered_words=mastered_word_strings,
     )
 
     # Save article
@@ -508,7 +507,6 @@ def regenerate(request, article_id):
     content_html = services.build_highlighted_html(
         article_data["content"],
         target_words=[w.word for w in hit_words],
-        mastered_words=mastered_word_strings,
     )
 
     new_article = Article.objects.create(

@@ -169,26 +169,16 @@ def get_mastered_words(user: User, word_bank: WordBank) -> list[str]:
 def build_highlighted_html(
     content: str,
     target_words: list[str],
-    mastered_words: list[str],
 ) -> str:
-    """Wrap target and mastered words in HTML tags for visual highlighting.
+    """Wrap target words in HTML tags for visual highlighting.
 
     Target words:  <strong class="word-target">word</strong>
-    Mastered words: <span class="word-mastered">word</span>
 
     Uses word-boundary matching to avoid substring false positives.
-    Target highlighting takes priority over mastered.
     """
-    # Combine words into a single list, longest first to avoid partial matches
-    # Track which list each word belongs to
+    # Longest first to avoid partial matches
     target_set = set(w.lower() for w in target_words)
-    mastered_set = set(w.lower() for w in mastered_words) - target_set
-
-    all_words = sorted(
-        [(w, "target") for w in target_set] + [(w, "mastered") for w in mastered_set],
-        key=lambda x: len(x[0]),
-        reverse=True,
-    )
+    all_words = sorted(target_set, key=len, reverse=True)
 
     # Escape HTML first (XSS prevention), then split and wrap in <p> tags
     content = html.escape(content)
@@ -205,21 +195,17 @@ def build_highlighted_html(
     return "\n".join(html_paragraphs)
 
 
-def _highlight_words_in_text(text: str, words_with_type: list[tuple[str, str]]) -> str:
+def _highlight_words_in_text(text: str, words: list[str]) -> str:
     """Apply highlighting to words in a text, longest-match first.
 
     Uses a token placeholder approach to avoid nested replacements.
     """
     replacements = {}  # placeholder -> replacement HTML
 
-    for word, wtype in words_with_type:
+    for word in words:
         placeholder = f"__WORD_{len(replacements)}__"
         pattern = re.compile(r"\b" + re.escape(word) + r"\b", re.IGNORECASE)
-
-        if wtype == "target":
-            replacement = f'<strong class="word-target">{word}</strong>'
-        else:
-            replacement = f'<span class="word-mastered">{word}</span>'
+        replacement = f'<strong class="word-target">{word}</strong>'
 
         text, count = pattern.subn(placeholder, text)
         if count > 0:

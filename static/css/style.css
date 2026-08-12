@@ -9,14 +9,6 @@
     border-radius: 3px;
 }
 
-.word-mastered {
-    background: rgba(128, 128, 128, 0.3);
-    color: inherit;
-    padding: 0 3px;
-    border-radius: 3px;
-    font-weight: 400;
-}
-
 /* Dark theme overrides */
 [data-theme="dark"] .word-target,
 :root:not([data-theme="light"]) .word-target {
@@ -24,20 +16,10 @@
     color: #fff;
 }
 
-[data-theme="dark"] .word-mastered,
-:root:not([data-theme="light"]) .word-mastered {
-    background: rgba(255, 255, 255, 0.08);
-    color: #9ca3af;
-}
-
 @media (prefers-color-scheme: dark) {
     .word-target {
         background: #b8860b;
         color: #fff;
-    }
-    .word-mastered {
-        background: rgba(255, 255, 255, 0.08);
-        color: #9ca3af;
     }
 }
 
@@ -45,11 +27,6 @@
 [data-theme="light"] .word-target {
     background: #fde68a;
     color: #1a1a1a;
-}
-
-[data-theme="light"] .word-mastered {
-    background: rgba(128, 128, 128, 0.2);
-    color: #6b7280;
 }
 
 /* ---- Word Review Cards ---- */
@@ -349,7 +326,7 @@
     }
 
     /* Smaller word highlight */
-    .word-target, .word-mastered {
+    .word-target {
         padding: 0 1px;
     }
 
