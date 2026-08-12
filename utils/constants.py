@@ -33,6 +33,10 @@ PRESET_INTERESTS = [
     ("scifi", "Sci-Fi"),
     ("mystery", "Mystery & Suspense"),
     ("crime", "Crime & Detective"),
+    ("women", "Women"),
+    ("peace-love", "Peace & Love"),
+    ("relax", "Relaxation"),
+    ("gossip", "Gossip"),
 ]
 
 SPACED_REPETITION_INTERVALS = [1, 3, 7, 21, 60]
