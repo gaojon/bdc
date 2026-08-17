@@ -13,6 +13,7 @@ Environment variables:
 """
 
 import os
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -167,3 +168,57 @@ if os.environ.get("DJANGO_BEHIND_PROXY") in ("1", "true", "yes"):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+# App logs go to a rotating file (local: logs/app.log, production: same path
+# under /home/opc/bdc) plus stderr for dev. gunicorn --daemon discards worker
+# stderr, so a file handler is required to actually inspect these logs in
+# production. The "learning" logger runs at DEBUG so the recite drill's
+# critical phases are traceable; django.security.csrf + django.request surface
+# CSRF rejections and 4xx/5xx responses at a glance.
+os.makedirs(BASE_DIR / "logs", exist_ok=True)
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "[{asctime}] {levelname} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "stream": sys.stderr,
+            "formatter": "verbose",
+            "level": "DEBUG",
+        },
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": BASE_DIR / "logs" / "app.log",
+            "maxBytes": 5 * 1024 * 1024,
+            "backupCount": 3,
+            "formatter": "verbose",
+            "level": "DEBUG",
+        },
+    },
+    "loggers": {
+        "learning": {
+            "handlers": ["console", "file"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "django.security.csrf": {
+            "handlers": ["console", "file"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["console", "file"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+}

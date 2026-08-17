@@ -541,6 +541,14 @@ def recite_data(request, article_id):
         ).values_list("word_id", flat=True)
     )
     words = [w for w in hit_words if w.id not in mastered_ids]
+    logger.debug(
+        "recite_data user=%s article=%s hit_words=%d queue=%d mastered_excluded=%d",
+        request.user.username,
+        article_id,
+        len(hit_words),
+        len(words),
+        len(hit_words) - len(words),
+    )
 
     # Candidate distractor definitions from the same word bank.
     bank_pool = []
@@ -585,14 +593,26 @@ def recite_master(request, article_id):
     """Mark a recited word as mastered (POST word_id). Owner only."""
     article = get_object_or_404(Article, id=article_id, user=request.user)
     if request.method != "POST":
+        logger.debug(
+            "recite_master user=%s article=%s rejected: not POST",
+            request.user.username, article_id,
+        )
         return JsonResponse({"ok": False, "error": "POST required"}, status=405)
 
     word_id = request.POST.get("word_id", "")
     if not word_id.isdigit():
+        logger.debug(
+            "recite_master user=%s article=%s rejected: missing/invalid word_id",
+            request.user.username, article_id,
+        )
         return JsonResponse({"ok": False, "error": "missing word_id"}, status=400)
     word_id = int(word_id)
 
     if word_id not in article.hit_word_ids:
+        logger.debug(
+            "recite_master user=%s article=%s word=%s rejected: not in article",
+            request.user.username, article_id, word_id,
+        )
         return JsonResponse({"ok": False, "error": "word not in article"}, status=400)
 
     ws, _ = UserWordStatus.objects.get_or_create(
@@ -603,6 +623,10 @@ def recite_master(request, article_id):
     if ws.status != WordStatus.MASTERED:
         services.mark_word_mastered(ws)
     services.record_learning_activity(request.user, words_mastered=1)
+    logger.debug(
+        "recite_master user=%s article=%s word=%s ok (status=%s)",
+        request.user.username, article_id, word_id, ws.status,
+    )
     return JsonResponse({"ok": True})
 
 

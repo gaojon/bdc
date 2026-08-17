@@ -171,13 +171,20 @@
         // CSRF_COOKIE_HTTPONLY hides the cookie from JS, so read the token
         // from a {% csrf_token %} hidden input already on the page.
         const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
-        return input ? input.value : "";
+        const token = input ? input.value : "";
+        if (!token) console.warn("[recite] no csrf token on page — recite_master POST will be rejected (403)");
+        return token;
     }
     function speak(word) {
-        if (!("speechSynthesis" in window)) return false;
+        if (!("speechSynthesis" in window)) {
+            console.warn("[recite] Web Speech API unavailable for: " + word);
+            return false;
+        }
+        const lang = accent === "uk" ? "en-GB" : "en-US";
+        console.log("[recite] speak word=" + JSON.stringify(word) + " lang=" + lang);
         speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(word);
-        u.lang = accent === "uk" ? "en-GB" : "en-US";
+        u.lang = lang;
         u.rate = 0.85;
         speechSynthesis.speak(u);
         return true;
@@ -198,6 +205,8 @@
         hintEl.textContent = "";
         renderOptions();
         progressEl.textContent = (queue.length + 1) + " left";
+        console.log("[recite] ask word_id=" + current.id + " word=" + JSON.stringify(current.word)
+            + " options=" + current.options.length + " correct=" + current.correct);
         if (!speak(current.word) && current.pronounce) {
             hintEl.textContent = "TTS unavailable — " + current.pronounce;
         }
@@ -209,20 +218,28 @@
             progressEl.textContent = "";
             optionsEl.innerHTML = "";
             hintEl.innerHTML = "🎉 All words mastered!";
+            console.log("[recite] all words done");
             return;
         }
         current = queue.shift();
         showCurrent();
     }
     function markMastered(id) {
+        console.log("[recite] POST recite_master word_id=" + id);
         fetch(masterUrl, {
             method: "POST",
             headers: {"X-CSRFToken": csrfToken()},
             body: new URLSearchParams({word_id: id}),
-        });
+        })
+            .then(r => r.json())
+            .then(d => console.log("[recite] recite_master resp", d))
+            .catch(err => console.error("[recite] recite_master failed", err));
     }
     function answer(i) {
         playBtn.disabled = true;
+        const correct = i === current.correct;
+        console.log("[recite] answer idx=" + i + (correct ? " CORRECT" : " WRONG")
+            + " (correct=" + current.correct + ")");
         optionsEl.querySelectorAll("button").forEach((b, j) => {
             b.disabled = true;
             if (j === current.correct) {
@@ -249,19 +266,23 @@
 
     btn.addEventListener("click", (e) => {
         e.preventDefault();
+        console.log("[recite] fetch queue from " + dataUrl);
         fetch(dataUrl)
             .then(r => r.json())
             .then(data => {
                 accent = data.accent || "us";
                 queue = data.words || [];
+                console.log("[recite] queue loaded accent=" + accent + " words=" + queue.length);
                 if (!queue.length) {
+                    console.warn("[recite] queue empty — nothing to recite");
                     hintEl.innerHTML = "No words to recite — all words in this article are already mastered.";
                     dialog.showModal();
                     return;
                 }
                 dialog.showModal();
                 next();
-            });
+            })
+            .catch(err => console.error("[recite] fetch queue failed", err));
     });
 })();
 </script>

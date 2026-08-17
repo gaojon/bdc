@@ -12,6 +12,7 @@ data/zone.identifier
 *.Zone.Identifier
 .bdc.log
 .bdc.pid
+logs/
 start.sh
 gunicorn.pid
 access.log
