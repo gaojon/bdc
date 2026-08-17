@@ -156,6 +156,10 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SECURE = not DEBUG
+# Turn the 403 CSRF-failure page into a friendly redirect (accounts.views.csrf_failure).
+# Most common trigger: iOS Safari re-submitting a stale login form after Django
+# rotated the CSRF token on a successful login.
+CSRF_FAILURE_VIEW = "accounts.views.csrf_failure"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"

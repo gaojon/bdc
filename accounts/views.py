@@ -1,9 +1,12 @@
 """Account views: login, logout, profile."""
 
+from urllib.parse import quote
+
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
+from django.urls import reverse
 
 from accounts.models import LoginRecord
 
@@ -42,6 +45,29 @@ def login_view(request):
             return redirect(next_url)
         messages.error(request, "Invalid username or password.")
     return render(request, "accounts/login.html")
+
+
+def csrf_failure(request, reason=""):
+    """Replace Django's 403 CSRF-failure page with a friendly redirect.
+
+    iOS Safari re-submits a stale login form after a successful login: Django's
+    ``django.contrib.auth.login()`` rotates the CSRF token, so the still-open
+    form carries a token that is now invalid and the re-submit bounces with
+    "Forbidden (CSRF token from POST incorrect.)" — a dead-end 403 page.
+
+    Instead, bounce POSTs aimed at the login page back to a freshly rendered
+    form with a hint; non-login CSRF failures (stale forms elsewhere) go back
+    to the home page with the same hint. The rejection is still recorded in the
+    django.security.csrf log either way.
+    """
+    messages.error(request, "Session expired — please log in again.")
+    login_path = reverse("accounts:login")
+    if request.path.startswith(login_path):
+        next_url = request.GET.get("next")
+        if next_url:
+            return redirect(f"{login_path}?next={quote(next_url)}")
+        return redirect(login_path)
+    return redirect("/")
 
 
 def logout_view(request):
