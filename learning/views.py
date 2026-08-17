@@ -655,6 +655,34 @@ def delete_article(request, article_id):
     return redirect("learning:index")
 
 
+@login_required
+def delete_articles(request):
+    """Delete multiple articles (and their quizzes) in one action.
+
+    Accepts POST with repeated `article_ids` values. Owners can only delete
+    their own; superusers can delete any. Quizzes cascade with the article.
+    """
+    if request.method != "POST":
+        return redirect("learning:index")
+
+    ids = [int(i) for i in request.POST.getlist("article_ids") if i.isdigit()]
+    if not ids:
+        messages.info(request, "No articles selected.")
+        return redirect("learning:index")
+
+    qs = Article.objects.filter(id__in=ids)
+    if not request.user.is_superuser:
+        qs = qs.filter(user=request.user)
+    count = qs.count()
+    qs.delete()
+
+    if count:
+        messages.success(request, f"Deleted {count} article(s).")
+    else:
+        messages.info(request, "No articles found to delete.")
+    return redirect("learning:index")
+
+
 # ---------------------------------------------------------------------------
 # Stats
 # ---------------------------------------------------------------------------

@@ -240,3 +240,67 @@ class TargetWordCountTest(TestCase):
             )
         self.user.profile.refresh_from_db()
         self.assertEqual(self.user.profile.target_word_count, 60)
+
+
+class BulkDeleteArticlesTest(TestCase):
+    """Selecting multiple articles and deleting them in one action."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="pass")
+        self.other = User.objects.create_user(username="other", password="pass")
+        self.admin = User.objects.create_user(
+            username="admin", password="pass", is_superuser=True
+        )
+        self.bank = WordBank.objects.create(name="Words")
+        self.owner_articles = [self._make_article(self.owner, i) for i in range(3)]
+        self.other_article = self._make_article(self.other, 1)
+
+    def _make_article(self, user, n):
+        return Article.objects.create(
+            user=user,
+            word_bank=self.bank,
+            title=f"A{n}",
+            content="body",
+            content_html="<p>body</p>",
+            target_word_ids=[],
+            hit_word_ids=[],
+            sentence_complexity=5,
+        )
+
+    def test_owner_deletes_own_selected_articles(self):
+        ids = [self.owner_articles[0].id, self.owner_articles[1].id]
+        c = Client()
+        c.force_login(self.owner)
+        resp = c.post(reverse("learning:delete_articles"), {"article_ids": ids})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(Article.objects.filter(user=self.owner).count(), 1)
+
+    def test_superuser_deletes_any_articles(self):
+        ids = [self.owner_articles[0].id, self.other_article.id]
+        c = Client()
+        c.force_login(self.admin)
+        c.post(reverse("learning:delete_articles"), {"article_ids": ids})
+        self.assertFalse(Article.objects.filter(id__in=ids).exists())
+
+    def test_non_owner_cannot_delete_others(self):
+        c = Client()
+        c.force_login(self.owner)
+        c.post(
+            reverse("learning:delete_articles"),
+            {"article_ids": [self.other_article.id]},
+        )
+        self.assertTrue(Article.objects.filter(id=self.other_article.id).exists())
+
+    def test_get_redirects_without_deleting(self):
+        c = Client()
+        c.force_login(self.owner)
+        resp = c.get(reverse("learning:delete_articles"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(Article.objects.count(), 4)
+
+    def test_no_ids_is_a_noop(self):
+        c = Client()
+        c.force_login(self.owner)
+        resp = c.post(reverse("learning:delete_articles"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(Article.objects.count(), 4)

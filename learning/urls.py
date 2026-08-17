@@ -43,5 +43,10 @@ urlpatterns = [
         views.delete_article,
         name="delete_article",
     ),
+    path(
+        "articles/delete/",
+        views.delete_articles,
+        name="delete_articles",
+    ),
     path("stats/", views.stats, name="stats"),
 ]

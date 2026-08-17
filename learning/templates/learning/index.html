@@ -92,9 +92,19 @@
 <h2>Article History</h2>
 
 {% if articles %}
+<form id="bulk-delete-form" method="post" action="{% url 'learning:delete_articles' %}"
+      style="display:flex;align-items:center;gap:0.6em;margin-bottom:0.6em;">
+    {% csrf_token %}
+    <button type="submit" id="bulk-delete-btn" disabled
+            style="background:#dc2626;border-color:#dc2626;color:#fff;">Delete Selected</button>
+    <small id="bulk-selected-count">0 selected</small>
+</form>
 <table>
     <thead>
         <tr>
+            <th style="width:1.5em;">
+                <input type="checkbox" id="select-all-articles" title="Select all articles">
+            </th>
             <th>Title</th>
             <th>Bank</th>
             {% if user.is_superuser %}<th>User</th>{% endif %}
@@ -108,6 +118,9 @@
     <tbody>
         {% for article in articles %}
         <tr>
+            <td style="width:1.5em;">
+                <input type="checkbox" name="article_ids" value="{{ article.id }}" class="article-check">
+            </td>
             <td>
                 <a href="{% url 'learning:article_detail' article.id %}">{{ article.title }}</a>
                 {% if article.is_regenerated %}<small>(regenerated)</small>{% endif %}
@@ -160,6 +173,54 @@ if (bankSelect && unmasteredEl) {
         const opt = bankSelect.selectedOptions[0];
         unmasteredEl.textContent = opt && opt.dataset.unmastered !== undefined
             ? opt.dataset.unmastered : '0';
+    });
+}
+
+// ---- Bulk delete: select-all, enable button, copy checked IDs on submit ----
+const selectAll = document.getElementById('select-all-articles');
+const articleChecks = document.querySelectorAll('.article-check');
+const bulkForm = document.getElementById('bulk-delete-form');
+const bulkBtn = document.getElementById('bulk-delete-btn');
+const bulkCount = document.getElementById('bulk-selected-count');
+
+function updateBulkUI() {
+    const n = document.querySelectorAll('.article-check:checked').length;
+    bulkBtn.disabled = n === 0;
+    bulkCount.textContent = n + ' selected';
+    if (selectAll) {
+        selectAll.checked = articleChecks.length > 0 && n === articleChecks.length;
+    }
+}
+
+if (bulkForm && articleChecks.length) {
+    articleChecks.forEach(cb => cb.addEventListener('change', updateBulkUI));
+    if (selectAll) {
+        selectAll.addEventListener('change', () => {
+            articleChecks.forEach(cb => { cb.checked = selectAll.checked; });
+            updateBulkUI();
+        });
+    }
+    bulkForm.addEventListener('submit', (e) => {
+        const checked = document.querySelectorAll('.article-check:checked');
+        if (!checked.length) {
+            e.preventDefault();
+            return false;
+        }
+        if (!confirm('Delete ' + checked.length +
+                     ' selected article(s) and their quizzes? This cannot be undone.')) {
+            e.preventDefault();
+            return false;
+        }
+        // Checkboxes live outside this form (per-row delete forms prevent
+        // nesting), so copy their values into hidden inputs before submitting.
+        bulkForm.querySelectorAll('input[name="article_ids"]').forEach(i => i.remove());
+        checked.forEach(cb => {
+            const h = document.createElement('input');
+            h.type = 'hidden';
+            h.name = 'article_ids';
+            h.value = cb.value;
+            bulkForm.appendChild(h);
+        });
     });
 }
 </script>
