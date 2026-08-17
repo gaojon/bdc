@@ -7,6 +7,8 @@
     color: #1a1a1a;
     padding: 0 3px;
     border-radius: 3px;
+    /* On touch devices, respond to taps immediately (no double-tap zoom delay) */
+    touch-action: manipulation;
 }
 
 /* Dark theme overrides */
@@ -257,8 +259,10 @@
         width: 100%;
     }
 
-    /* Form elements full width (except checkboxes, which stay square) */
-    input:not([type="checkbox"]), select, textarea {
+    /* Form elements full width (except checkboxes/radios, which stay square —
+       radio circles stretched full-width were breaking the quiz A/B/C/D
+       selectors on iPhone) */
+    input:not([type="checkbox"]):not([type="radio"]), select, textarea {
         width: 100%;
     }
 
@@ -347,6 +351,56 @@
         width: 6px;
         height: 6px;
     }
+}
+
+/* ---- Article word hover tooltip ---- */
+#word-tooltip {
+    position: fixed;
+    z-index: 1000;
+    max-width: 320px;
+    padding: 0.75em 1em;
+    background: var(--pico-card-background-color, #ffffff);
+    border: 1px solid var(--pico-muted-border-color, #cccccc);
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    white-space: pre-line;
+    display: none;
+    pointer-events: none;
+}
+
+#word-tooltip .wt-word {
+    font-weight: 700;
+}
+
+#word-tooltip .wt-pron {
+    color: var(--pico-muted-color);
+    font-weight: 400;
+}
+
+#word-tooltip .wt-pos {
+    color: var(--pico-muted-color);
+    font-size: 0.8rem;
+}
+
+#word-tooltip .wt-en {
+    margin-top: 0.3em;
+}
+
+#word-tooltip .wt-cn {
+    margin-top: 0.3em;
+    color: var(--pico-muted-color);
+}
+
+#word-tooltip .wt-ex {
+    margin-top: 0.3em;
+    font-style: italic;
+}
+
+#word-tooltip .wt-syn {
+    margin-top: 0.3em;
+    font-size: 0.8rem;
 }
 
 /* ---- Article content ---- */

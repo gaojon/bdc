@@ -21,7 +21,14 @@ from learning.models import (
     UserWordStatus,
 )
 from utils.config import get_config
-from utils.constants import SENTENCE_COMPLEXITY_MAX, SENTENCE_COMPLEXITY_MIN, WordStatus
+from utils.constants import (
+    SENTENCE_COMPLEXITY_MAX,
+    SENTENCE_COMPLEXITY_MIN,
+    TARGET_WORDS_DEFAULT,
+    TARGET_WORDS_MAX,
+    TARGET_WORDS_MIN,
+    WordStatus,
+)
 from wordbank.models import Word, WordBank, WordBankEntry
 
 
@@ -127,6 +134,9 @@ def index(request):
         "unmastered_count": unmastered_count,
         "complexity_min": SENTENCE_COMPLEXITY_MIN,
         "complexity_max": SENTENCE_COMPLEXITY_MAX,
+        "target_words_min": TARGET_WORDS_MIN,
+        "target_words_max": TARGET_WORDS_MAX,
+        "target_word_count": profile.target_word_count,
         "article_length": profile.article_length,
         "can_generate": allowed,
         "remaining_generations": remaining,
@@ -189,6 +199,14 @@ def generate_article(request):
     except ValueError:
         article_length = default_length
 
+    # Number of target vocabulary words fed to the AI (default 30, max 60).
+    target_words_str = request.POST.get("target_word_count", str(TARGET_WORDS_DEFAULT))
+    try:
+        word_count = int(target_words_str)
+        word_count = max(TARGET_WORDS_MIN, min(TARGET_WORDS_MAX, word_count))
+    except ValueError:
+        word_count = TARGET_WORDS_DEFAULT
+
     word_bank = get_object_or_404(WordBank, id=word_bank_id)
     interests = Interest.objects.filter(id__in=interest_ids) if interest_ids else []
 
@@ -207,7 +225,9 @@ def generate_article(request):
     profile.save(update_fields=["selected_word_bank_id"])
 
     # Select words for the AI
-    selected_words = services.select_words_for_article(request.user, word_bank)
+    selected_words = services.select_words_for_article(
+        request.user, word_bank, max_words=word_count
+    )
     if not selected_words:
         messages.error(
             request,
@@ -223,7 +243,10 @@ def generate_article(request):
     profile = request.user.profile
     profile.sentence_complexity = complexity
     profile.article_length = article_length
-    profile.save(update_fields=["sentence_complexity", "article_length"])
+    profile.target_word_count = word_count
+    profile.save(
+        update_fields=["sentence_complexity", "article_length", "target_word_count"]
+    )
 
     # Call DeepSeek — article generation
     article_data = ai.generate_article(word_strings, interest_names, complexity, article_length)
@@ -295,6 +318,36 @@ def generate_article(request):
 # ---------------------------------------------------------------------------
 
 
+def _build_word_glossary(hit_words: list[Word]) -> dict:
+    """Map lowercased word text -> display info for article hover tooltips.
+
+    Shows pronunciation (current accent, falling back to the other), POS,
+    English/Chinese definitions, examples, and synonyms/antonyms.
+    """
+    accent = services.get_accent()
+    glossary = {}
+    for w in hit_words:
+        if accent == "uk":
+            pron = f"UK /{w.pronounce_uk}/" if w.pronounce_uk else (
+                f"US /{w.pronounce_us}/" if w.pronounce_us else ""
+            )
+        else:
+            pron = f"US /{w.pronounce_us}/" if w.pronounce_us else (
+                f"UK /{w.pronounce_uk}/" if w.pronounce_uk else ""
+            )
+        glossary[w.word.lower()] = {
+            "word": w.word,
+            "pos": w.part_of_speech,
+            "pron": pron,
+            "definition": w.definition,
+            "english_definition": w.english_definition,
+            "examples": w.examples,
+            "synonyms": w.synonyms,
+            "antonyms": w.antonyms,
+        }
+    return glossary
+
+
 @login_required
 def article(request, article_id):
     """Display article with highlighted words and quiz."""
@@ -316,6 +369,7 @@ def article(request, article_id):
         "article": article,
         "quiz": quiz,
         "hit_words": hit_words,
+        "glossary": _build_word_glossary(hit_words),
         "read_only": request.user != article.user,
     }
     return render(request, "learning/article.html", context)
@@ -480,8 +534,12 @@ def regenerate(request, article_id):
     complexity = old_article.sentence_complexity
     profile = request.user.profile
     article_length = profile.article_length
+    # Regenerate with the same number of target words the original used.
+    word_count = max(1, len(old_article.target_word_ids))
 
-    selected_words = services.select_words_for_article(request.user, word_bank)
+    selected_words = services.select_words_for_article(
+        request.user, word_bank, max_words=word_count
+    )
     if not selected_words:
         messages.error(request, "No words available.")
         return redirect("learning:article", article_id=article_id)
@@ -571,9 +629,30 @@ def article_detail(request, article_id):
         "article": article,
         "quiz": quiz,
         "hit_words": hit_words,
+        "glossary": _build_word_glossary(hit_words),
         "read_only": request.user != article.user,
     }
     return render(request, "learning/article.html", context)
+
+
+@login_required
+def delete_article(request, article_id):
+    """Delete a generated article and its quiz.
+
+    Owners can delete their own articles; superusers can delete any. POST only.
+    """
+    if request.user.is_superuser:
+        article = get_object_or_404(Article, id=article_id)
+    else:
+        article = get_object_or_404(Article, id=article_id, user=request.user)
+
+    if request.method != "POST":
+        return redirect("learning:index")
+
+    title = article.title
+    article.delete()
+    messages.success(request, f"Article “{title}” deleted.")
+    return redirect("learning:index")
 
 
 # ---------------------------------------------------------------------------

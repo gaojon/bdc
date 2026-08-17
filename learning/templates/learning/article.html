@@ -39,6 +39,9 @@
     {{ article.content_html|safe }}
 </article>
 
+<!-- Hover-tooltip glossary for the highlighted learning words -->
+{{ glossary|json_script:"word-tooltip-data" }}
+
 <hr>
 
 <!-- Quiz section -->
@@ -104,6 +107,14 @@
         <form method="post" action="{% url 'learning:regenerate' article.id %}" style="margin:0;">
             {% csrf_token %}
             <button type="submit" class="secondary">Regenerate Article</button>
+        </form>
+    </div>
+    <div>
+        <form method="post" action="{% url 'learning:delete_article' article.id %}"
+              onsubmit="return confirm('Delete this article and its quiz? This cannot be undone.');"
+              style="margin:0;">
+            {% csrf_token %}
+            <button type="submit" style="background:#dc2626;border-color:#dc2626;color:#fff;">Delete Article</button>
         </form>
     </div>
     {% endif %}

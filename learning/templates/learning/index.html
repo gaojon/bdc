@@ -55,6 +55,15 @@
                 <small>100 = very short, 350 = medium, 600 = long</small>
             </label>
 
+            <label>
+                Target Words: <strong id="target-words-value">{{ target_word_count }}</strong>
+                <input type="range" name="target_word_count"
+                       min="{{ target_words_min }}" max="{{ target_words_max }}" step="5"
+                       value="{{ target_word_count }}"
+                       oninput="document.getElementById('target-words-value').textContent = this.value">
+                <small>How many vocabulary words the article should use ({{ target_words_min }}–{{ target_words_max }})</small>
+            </label>
+
             <button type="submit" {% if not can_generate %}disabled{% endif %}>
                 Generate Article
             </button>
@@ -93,6 +102,7 @@
             <th>Date</th>
             <th>Words</th>
             <th>Quiz</th>
+            <th>Actions</th>
         </tr>
     </thead>
     <tbody>
@@ -122,6 +132,15 @@
                 {% else %}
                     —
                 {% endif %}
+            </td>
+            <td style="white-space:nowrap;">
+                <form method="post" action="{% url 'learning:delete_article' article.id %}"
+                      onsubmit="return confirm('Delete “{{ article.title }}” and its quiz? This cannot be undone.');"
+                      style="margin:0;display:inline;">
+                    {% csrf_token %}
+                    <button type="submit"
+                            style="margin:0;padding:2px 8px;font-size:0.8rem;background:#dc2626;border-color:#dc2626;color:#fff;">Delete</button>
+                </form>
             </td>
         </tr>
         {% endfor %}

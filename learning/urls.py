@@ -38,5 +38,10 @@ urlpatterns = [
         views.article_detail,
         name="article_detail",
     ),
+    path(
+        "article/<int:article_id>/delete/",
+        views.delete_article,
+        name="delete_article",
+    ),
     path("stats/", views.stats, name="stats"),
 ]

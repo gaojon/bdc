@@ -7,6 +7,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from learning import services
+from learning.ai import build_combined_prompt
 from learning.models import Article, UserWordStatus
 from utils.constants import WordStatus
 from wordbank.models import Word, WordBank, WordBankEntry
@@ -173,3 +174,69 @@ class ReviewWordsMasteredFilteringTest(TestCase):
         shown = {w.word for w in resp.context["hit_words"]}
         self.assertNotIn("effort", shown)
         self.assertIn("appetite", shown)
+
+
+class TargetWordCountTest(TestCase):
+    """Target Words selection: 80% hit rate in the prompt, max_words wiring."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="wordpicker", password="pass")
+        self.bank = WordBank.objects.create(name="Words")
+        self.words = [
+            Word.objects.create(word=w, part_of_speech="n")
+            for w in ["alpha", "beta", "gamma", "delta"]
+        ]
+        for w in self.words:
+            WordBankEntry.objects.create(word_bank=self.bank, word=w)
+
+    def _fake_ai(self):
+        return {
+            "title": "Test Article",
+            "content": "Alpha beta.",
+            "hit_words": ["alpha"],
+            "glossary": {"alpha": "x"},
+            "quiz": {"questions": []},
+        }
+
+    def test_prompt_requests_80_percent_hit_rate(self):
+        words = [f"word{i}" for i in range(30)]
+        _, user_prompt = build_combined_prompt(["tech"], words, 5, 350)
+        self.assertIn("at least 24 of these", user_prompt)
+
+    def test_generate_passes_selected_word_count(self):
+        with patch("learning.ai.generate_article", return_value=self._fake_ai()), patch(
+            "learning.services.select_words_for_article",
+            return_value=self.words,
+        ) as mock_sel:
+            c = Client()
+            c.force_login(self.user)
+            resp = c.post(
+                reverse("learning:generate"),
+                {
+                    "word_bank_id": self.bank.id,
+                    "sentence_complexity": "5",
+                    "target_word_count": "40",
+                },
+            )
+        self.assertEqual(resp.status_code, 302)
+        args, kwargs = mock_sel.call_args
+        self.assertEqual(args[1], self.bank)
+        self.assertEqual(kwargs["max_words"], 40)
+
+    def test_generate_clamps_word_count_to_max(self):
+        with patch("learning.ai.generate_article", return_value=self._fake_ai()), patch(
+            "learning.services.select_words_for_article",
+            return_value=self.words,
+        ):
+            c = Client()
+            c.force_login(self.user)
+            c.post(
+                reverse("learning:generate"),
+                {
+                    "word_bank_id": self.bank.id,
+                    "sentence_complexity": "5",
+                    "target_word_count": "200",
+                },
+            )
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.target_word_count, 60)

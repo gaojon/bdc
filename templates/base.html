@@ -26,10 +26,10 @@
                     {% csrf_token %}
                     {% for val, label in accent_options %}
                     <button type="submit" name="accent" value="{{ val }}"
-                            aria-pressed="{% if accent == val %}true{% else %}false{% endif %}"
+                            {% if accent == val %}disabled aria-pressed="true"{% else %}aria-pressed="false"{% endif %}
                             class="{% if accent != val %}outline{% endif %}"
                             style="margin:0;padding:0 0.6em;font-size:0.8rem;
-                                   {% if accent == val %}font-weight:700;box-shadow:0 0 0 2px var(--pico-primary-focus);{% endif %}">
+                                   {% if accent == val %}opacity:1;font-weight:700;box-shadow:0 0 0 2px var(--pico-primary-focus);{% endif %}">
                         {{ label }}
                     </button>
                     {% endfor %}

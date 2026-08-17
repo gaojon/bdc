@@ -26,7 +26,17 @@ STATUS_LABELS = {
     "review": "Reviewing",
     "new": "New",
 }
-STATUS_CHOICES = list(STATUS_LABELS.items())
+# Hover tooltips (title attr) explaining what each status filter means.
+STATUS_HINTS = {
+    "new": "新词：尚未在文章中出现/学习过的单词",
+    "learning": "学习中：已出现在文章里、正在积累的单词",
+    "review": "复习中：掌握度未满、仍需反复巩固的单词",
+    "mastered": "已掌握：已通过复习完全掌握的单词",
+}
+STATUS_CHOICES = [
+    (value, label, STATUS_HINTS.get(value, ""))
+    for value, label in STATUS_LABELS.items()
+]
 
 
 @login_required

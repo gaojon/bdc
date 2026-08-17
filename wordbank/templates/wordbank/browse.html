@@ -30,8 +30,9 @@
         <form id="status-form" method="get" action="" style="display:flex;align-items:center;gap:0.6em;margin:0;">
             <input type="hidden" name="letter" value="{{ letter }}">
             <label style="margin:0;font-weight:bold;font-size:0.85rem;">Status:</label>
-            {% for value, label in status_choices %}
-            <label style="margin:0;display:flex;align-items:center;gap:0.3em;font-size:0.85rem;">
+            {% for value, label, hint in status_choices %}
+            <label style="margin:0;display:flex;align-items:center;gap:0.3em;font-size:0.85rem;"
+                   title="{{ hint }}">
                 <input type="checkbox" name="status" value="{{ value }}"
                        {% if value in statuses %}checked{% endif %}
                        onchange="this.form.submit()">

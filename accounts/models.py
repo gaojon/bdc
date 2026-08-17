@@ -3,7 +3,12 @@
 from django.contrib.auth.models import User
 from django.db import models
 
-from utils.constants import EnglishLevel, SENTENCE_COMPLEXITY_MAX, SENTENCE_COMPLEXITY_MIN
+from utils.constants import (
+    EnglishLevel,
+    SENTENCE_COMPLEXITY_MAX,
+    SENTENCE_COMPLEXITY_MIN,
+    TARGET_WORDS_DEFAULT,
+)
 
 
 class LoginRecord(models.Model):
@@ -31,6 +36,7 @@ class Profile(models.Model):
     daily_word_goal = models.IntegerField(default=10)
     selected_word_bank_id = models.IntegerField(null=True, blank=True)
     article_length = models.IntegerField(default=350)  # 100–600
+    target_word_count = models.IntegerField(default=TARGET_WORDS_DEFAULT)  # 10–60 vocab words per article
     daily_limit = models.IntegerField(default=-1)  # -1 means use global config
 
     @property

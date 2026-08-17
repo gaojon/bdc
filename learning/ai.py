@@ -58,7 +58,9 @@ def build_combined_prompt(
 
     interest_str = ", ".join(interests) if interests else "general topics"
     word_str = "\n".join(f"- {w}" for w in word_list)
-    min_words = get_config("article.min_hit_words", 25)
+    # Fixed 80% hit rate: of the N target words supplied, at least 80% must
+    # actually appear in the article.
+    min_words = max(1, round(len(word_list) * 0.8))
 
     user_prompt = f"""Write an English article and create a quiz for it.
 

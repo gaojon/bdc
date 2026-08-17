@@ -19,6 +19,11 @@ class EnglishLevel(models.TextChoices):
 SENTENCE_COMPLEXITY_MIN = 1
 SENTENCE_COMPLEXITY_MAX = 9
 
+# How many target vocabulary words are fed to the AI for article generation.
+TARGET_WORDS_MIN = 10
+TARGET_WORDS_DEFAULT = 30
+TARGET_WORDS_MAX = 60
+
 PRESET_INTERESTS = [
     ("technology", "Technology"),
     ("business", "Business"),
