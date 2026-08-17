@@ -304,3 +304,124 @@ class BulkDeleteArticlesTest(TestCase):
         resp = c.post(reverse("learning:delete_articles"))
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(Article.objects.count(), 4)
+
+
+class ReciteDictationTest(TestCase):
+    """Recite Words: TTS dictation queue (recite_data) and mastering (recite_master)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="reciter", password="pass")
+        self.other = User.objects.create_user(username="stranger", password="pass")
+        self.bank = WordBank.objects.create(name="ReciteBank")
+        self.words = [
+            Word.objects.create(
+                word=w,
+                part_of_speech="n",
+                english_definition=definition,
+                definition="中文释义",
+            )
+            for w, definition in [
+                ("abandon", "to give up on something completely"),
+                ("brisk", "quick and energetic"),
+                ("candid", "honest and straightforward"),
+                ("dwindle", "to become gradually smaller"),
+                ("elated", "extremely happy and excited"),
+            ]
+        ]
+        for w in self.words:
+            WordBankEntry.objects.create(word_bank=self.bank, word=w)
+        self.hit_ids = [self.words[0].id, self.words[1].id]
+        self.article = Article.objects.create(
+            user=self.user,
+            word_bank=self.bank,
+            title="Recite Me",
+            content="body",
+            content_html="<p>body</p>",
+            target_word_ids=self.hit_ids,
+            hit_word_ids=self.hit_ids,
+            sentence_complexity=5,
+        )
+
+    def test_recite_data_returns_four_options_with_correct(self):
+        c = Client()
+        c.force_login(self.user)
+        resp = c.get(reverse("learning:recite_data", args=[self.article.id]))
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn(data["accent"], ("us", "uk"))
+        self.assertEqual(len(data["words"]), 2)
+        for item in data["words"]:
+            self.assertEqual(len(item["options"]), 4)
+            self.assertEqual(
+                item["options"][item["correct"]],
+                Word.objects.get(id=item["id"]).english_definition,
+            )
+
+    def test_recite_data_excludes_mastered_words(self):
+        UserWordStatus.objects.create(
+            user=self.user, word=self.words[0], status=WordStatus.MASTERED
+        )
+        c = Client()
+        c.force_login(self.user)
+        data = c.get(reverse("learning:recite_data", args=[self.article.id])).json()
+        self.assertEqual([w["id"] for w in data["words"]], [self.words[1].id])
+
+    def test_recite_data_all_mastered_returns_empty_queue(self):
+        for w in self.words[:2]:
+            UserWordStatus.objects.create(
+                user=self.user, word=w, status=WordStatus.MASTERED
+            )
+        c = Client()
+        c.force_login(self.user)
+        data = c.get(reverse("learning:recite_data", args=[self.article.id])).json()
+        self.assertEqual(data["words"], [])
+
+    def test_recite_data_owner_only(self):
+        c = Client()
+        c.force_login(self.other)
+        resp = c.get(reverse("learning:recite_data", args=[self.article.id]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_recite_master_enters_review_cycle(self):
+        """Correct recitation uses the article-end Master flow (REVIEW + count)."""
+        c = Client()
+        c.force_login(self.user)
+        resp = c.post(
+            reverse("learning:recite_master", args=[self.article.id]),
+            {"word_id": self.words[0].id},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        ws = UserWordStatus.objects.get(user=self.user, word=self.words[0])
+        self.assertEqual(ws.status, WordStatus.REVIEW)
+        self.assertEqual(ws.mastered_count, 1)
+
+    def test_recite_master_get_returns_405(self):
+        c = Client()
+        c.force_login(self.user)
+        resp = c.get(reverse("learning:recite_master", args=[self.article.id]))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_recite_master_word_not_in_article_returns_400(self):
+        c = Client()
+        c.force_login(self.user)
+        resp = c.post(
+            reverse("learning:recite_master", args=[self.article.id]),
+            {"word_id": self.words[4].id},  # in bank, but not a hit word
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_recite_master_missing_word_id_returns_400(self):
+        c = Client()
+        c.force_login(self.user)
+        resp = c.post(reverse("learning:recite_master", args=[self.article.id]))
+        self.assertEqual(resp.status_code, 400)
+
+    def test_recite_master_owner_only(self):
+        c = Client()
+        c.force_login(self.other)
+        resp = c.post(
+            reverse("learning:recite_master", args=[self.article.id]),
+            {"word_id": self.words[0].id},
+        )
+        self.assertEqual(resp.status_code, 404)

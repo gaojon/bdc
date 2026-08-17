@@ -103,12 +103,13 @@
     <div>
         <a href="{% url 'learning:word_review' article.id %}" role="button">Review Words</a>
     </div>
+    {% if hit_words %}
     <div>
-        <form method="post" action="{% url 'learning:regenerate' article.id %}" style="margin:0;">
-            {% csrf_token %}
-            <button type="submit" class="secondary">Regenerate Article</button>
-        </form>
+        <a href="#" role="button" id="recite-btn" class="secondary"
+           data-data-url="{% url 'learning:recite_data' article.id %}"
+           data-master-url="{% url 'learning:recite_master' article.id %}">Recite Words</a>
     </div>
+    {% endif %}
     <div>
         <form method="post" action="{% url 'learning:delete_article' article.id %}"
               onsubmit="return confirm('Delete this article and its quiz? This cannot be undone.');"
@@ -122,4 +123,144 @@
         <a href="{% url 'learning:index' %}" role="button" class="contrast">Back to Home</a>
     </div>
 </div>
+
+<!-- Recite Words dictation dialog -->
+<dialog id="recite-dialog" style="padding:0;">
+    <article style="min-width:min(92vw,560px);margin:0;">
+        <header style="display:flex;justify-content:space-between;align-items:center;gap:1em;">
+            <strong>Recite Words</strong>
+            <small id="recite-progress"></small>
+        </header>
+        <div id="recite-body" style="text-align:center;">
+            <button type="button" id="recite-play" class="contrast"
+                    style="width:100%;padding:0.8em;font-size:1.4rem;margin-bottom:0.8em;">🔊 Play</button>
+            <p id="recite-hint" style="min-height:1.5em;"></p>
+            <div id="recite-options" style="display:grid;gap:0.5em;"></div>
+        </div>
+        <footer>
+            <button type="button" id="recite-close" class="secondary">Close</button>
+        </footer>
+    </article>
+</dialog>
+
+<script>
+(function () {
+    const btn = document.getElementById("recite-btn");
+    const dialog = document.getElementById("recite-dialog");
+    if (!btn || !dialog) return;
+
+    const progressEl = document.getElementById("recite-progress");
+    const hintEl = document.getElementById("recite-hint");
+    const playBtn = document.getElementById("recite-play");
+    const optionsEl = document.getElementById("recite-options");
+    const closeBtn = document.getElementById("recite-close");
+
+    const dataUrl = btn.dataset.dataUrl;
+    const masterUrl = btn.dataset.masterUrl;
+
+    let queue = [];
+    let current = null;
+    let accent = "us";
+
+    function esc(s) {
+        return String(s == null ? "" : s)
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+    function csrfToken() {
+        const m = document.cookie.match(/(?:^|;)\s*csrftoken=([^;]+)/);
+        return m ? decodeURIComponent(m[1]) : "";
+    }
+    function speak(word) {
+        if (!("speechSynthesis" in window)) return false;
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(word);
+        u.lang = accent === "uk" ? "en-GB" : "en-US";
+        u.rate = 0.85;
+        speechSynthesis.speak(u);
+        return true;
+    }
+    function renderOptions() {
+        optionsEl.innerHTML = "";
+        current.options.forEach((opt, i) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.textContent = String.fromCharCode(65 + i) + ". " + opt;
+            b.style.cssText = "text-align:left;margin:0;";
+            b.addEventListener("click", () => answer(i, b));
+            optionsEl.appendChild(b);
+        });
+    }
+    function showCurrent() {
+        playBtn.disabled = false;
+        hintEl.textContent = "";
+        renderOptions();
+        progressEl.textContent = (queue.length + 1) + " left";
+        if (!speak(current.word) && current.pronounce) {
+            hintEl.textContent = "TTS unavailable — " + current.pronounce;
+        }
+    }
+    function next() {
+        if (!queue.length) {
+            current = null;
+            playBtn.disabled = true;
+            progressEl.textContent = "";
+            optionsEl.innerHTML = "";
+            hintEl.innerHTML = "🎉 All words mastered!";
+            return;
+        }
+        current = queue.shift();
+        showCurrent();
+    }
+    function markMastered(id) {
+        fetch(masterUrl, {
+            method: "POST",
+            headers: {"X-CSRFToken": csrfToken()},
+            body: new URLSearchParams({word_id: id}),
+        });
+    }
+    function answer(i) {
+        playBtn.disabled = true;
+        optionsEl.querySelectorAll("button").forEach((b, j) => {
+            b.disabled = true;
+            if (j === current.correct) {
+                b.style.background = "#059669"; b.style.borderColor = "#059669"; b.style.color = "#fff";
+            } else if (j === i) {
+                b.style.background = "#dc2626"; b.style.borderColor = "#dc2626"; b.style.color = "#fff";
+            }
+        });
+        if (i === current.correct) {
+            markMastered(current.id);
+            hintEl.innerHTML = "✅ Correct — <strong>" + esc(current.word) + "</strong> marked mastered. Moving on…";
+            setTimeout(next, 900);
+        } else {
+            queue.push(current); // wrong → back to the end of the queue
+            hintEl.innerHTML = "❌ That was <strong>" + esc(current.word) + "</strong>. Correct answer: <em>"
+                + esc(current.options[current.correct]) + "</em> — it will repeat.";
+            setTimeout(next, 1800);
+        }
+    }
+
+    playBtn.addEventListener("click", () => { if (current) speak(current.word); });
+    dialog.addEventListener("close", () => speechSynthesis.cancel());
+    closeBtn.addEventListener("click", () => dialog.close());
+
+    btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        fetch(dataUrl)
+            .then(r => r.json())
+            .then(data => {
+                accent = data.accent || "us";
+                queue = data.words || [];
+                if (!queue.length) {
+                    hintEl.innerHTML = "No words to recite — all words in this article are already mastered.";
+                    dialog.showModal();
+                    return;
+                }
+                dialog.showModal();
+                next();
+            });
+    });
+})();
+</script>
 {% endblock %}

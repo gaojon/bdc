@@ -2,6 +2,7 @@
 
 import json
 import logging
+import random
 from datetime import date
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import models
 from django.db.models import Count
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from learning import ai, services
@@ -507,6 +509,101 @@ def save_word_decisions(request, article_id):
     services.record_learning_activity(request.user, words_mastered=mastered_count)
     messages.success(request, f"{mastered_count} word(s) marked as mastered.")
     return redirect("learning:index")
+
+
+# ---------------------------------------------------------------------------
+# Recite — listen & match English definitions (TTS dictation)
+# ---------------------------------------------------------------------------
+
+
+def _option_text(word: Word) -> str:
+    """English definition preferred, falling back to the stored definition."""
+    return (word.english_definition or "").strip() or (word.definition or "").strip()
+
+
+@login_required
+def recite_data(request, article_id):
+    """Return the dictation queue: each un-mastered hit word + 4 choices.
+
+    The correct definition is mixed with 3 distractors sampled from the same
+    word bank. `correct` holds the index of the right answer in `options`.
+    The queue is client-side; only the data (and accent for TTS) is served.
+    """
+    article = get_object_or_404(Article, id=article_id, user=request.user)
+    hit_words = list(Word.objects.filter(id__in=article.hit_word_ids))
+
+    # Drop words the user has already mastered.
+    mastered_ids = set(
+        UserWordStatus.objects.filter(
+            user=request.user,
+            word_id__in=[w.id for w in hit_words],
+            status=WordStatus.MASTERED,
+        ).values_list("word_id", flat=True)
+    )
+    words = [w for w in hit_words if w.id not in mastered_ids]
+
+    # Candidate distractor definitions from the same word bank.
+    bank_pool = []
+    if article.word_bank:
+        bank_pool = list(
+            Word.objects.filter(bank_entries__word_bank=article.word_bank)
+            .exclude(id__in=[w.id for w in words])
+            .values_list("id", "english_definition", "definition")
+        )
+
+    def _distractors(word: Word, n: int) -> list[str]:
+        """Sample n distinct distractor definition texts, skipping the answer."""
+        answer = _option_text(word)
+        chosen = []
+        for _, en, cn in bank_pool:
+            text = (en or "").strip() or (cn or "").strip()
+            if text and text != answer:
+                chosen.append(text)
+            if len(chosen) >= n:
+                break
+        return chosen
+
+    accent = services.get_accent()
+    queue = []
+    for w in words:
+        correct = _option_text(w)
+        options = [correct] + _distractors(w, 3)
+        random.shuffle(options)
+        queue.append({
+            "id": w.id,
+            "word": w.word,
+            "pronounce": w.pronounce_us if accent != "uk" else w.pronounce_uk,
+            "options": options,
+            "correct": options.index(correct),
+        })
+
+    return JsonResponse({"accent": accent, "words": queue})
+
+
+@login_required
+def recite_master(request, article_id):
+    """Mark a recited word as mastered (POST word_id). Owner only."""
+    article = get_object_or_404(Article, id=article_id, user=request.user)
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "POST required"}, status=405)
+
+    word_id = request.POST.get("word_id", "")
+    if not word_id.isdigit():
+        return JsonResponse({"ok": False, "error": "missing word_id"}, status=400)
+    word_id = int(word_id)
+
+    if word_id not in article.hit_word_ids:
+        return JsonResponse({"ok": False, "error": "word not in article"}, status=400)
+
+    ws, _ = UserWordStatus.objects.get_or_create(
+        user=request.user,
+        word_id=word_id,
+        defaults={"status": WordStatus.LEARNING},
+    )
+    if ws.status != WordStatus.MASTERED:
+        services.mark_word_mastered(ws)
+    services.record_learning_activity(request.user, words_mastered=1)
+    return JsonResponse({"ok": True})
 
 
 # ---------------------------------------------------------------------------

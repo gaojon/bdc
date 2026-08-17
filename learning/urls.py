@@ -28,6 +28,16 @@ urlpatterns = [
         name="save_word_decisions",
     ),
     path(
+        "article/<int:article_id>/recite/data/",
+        views.recite_data,
+        name="recite_data",
+    ),
+    path(
+        "article/<int:article_id>/recite/master/",
+        views.recite_master,
+        name="recite_master",
+    ),
+    path(
         "article/<int:article_id>/regenerate/",
         views.regenerate,
         name="regenerate",
