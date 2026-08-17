@@ -75,7 +75,7 @@
         </thead>
         <tbody>
             {% for d in trend_days reversed %}
-            <tr>
+            <tr{% if forloop.counter > 7 %} class="dday-more" hidden{% endif %}>
                 <td>{{ d.date|date:"Y-m-d" }}</td>
                 <td>{{ d.learning }}</td>
                 <td>{{ d.reviewing }}</td>
@@ -85,6 +85,8 @@
             {% endfor %}
         </tbody>
     </table>
+    <button type="button" id="dday-show-more" class="secondary"
+            style="margin-top:0.6em;">Show More</button>
 </div>
 {% else %}
 <p>No activity in the last 30 days. Read an article to start building your vocabulary.</p>
@@ -94,4 +96,17 @@
     <a href="{% url 'learning:history' %}" role="button">View Reading History</a>
     <a href="{% url 'learning:index' %}" role="button" class="secondary">Back to Home</a>
 </p>
+
+<script>
+// Daily Detail shows the last 7 days; "Show More" reveals the other 23.
+const showMoreBtn = document.getElementById('dday-show-more');
+const extraRows = document.querySelectorAll('.dday-more');
+if (showMoreBtn && extraRows.length) {
+    showMoreBtn.addEventListener('click', () => {
+        const hiding = extraRows[0].hidden;
+        extraRows.forEach(r => { r.hidden = !hiding; });
+        showMoreBtn.textContent = hiding ? 'Show Less' : 'Show More';
+    });
+}
+</script>
 {% endblock %}
