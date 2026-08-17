@@ -382,6 +382,16 @@ class ReciteDictationTest(TestCase):
         resp = c.get(reverse("learning:recite_data", args=[self.article.id]))
         self.assertEqual(resp.status_code, 404)
 
+    def test_article_page_has_csrf_token_source_for_recite(self):
+        """The recite JS reads its CSRF token from a hidden input on the page
+        (CSRF_COOKIE_HTTPONLY hides the cookie from JS). The page must render
+        one whenever the Recite Words button is shown."""
+        c = Client()
+        c.force_login(self.user)
+        html = c.get(reverse("learning:article", args=[self.article.id])).content.decode()
+        self.assertIn('id="recite-btn"', html)
+        self.assertIn('name="csrfmiddlewaretoken"', html)
+
     def test_recite_master_enters_review_cycle(self):
         """Correct recitation uses the article-end Master flow (REVIEW + count)."""
         c = Client()

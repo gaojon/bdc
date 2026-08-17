@@ -168,8 +168,10 @@
             .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
     function csrfToken() {
-        const m = document.cookie.match(/(?:^|;)\s*csrftoken=([^;]+)/);
-        return m ? decodeURIComponent(m[1]) : "";
+        // CSRF_COOKIE_HTTPONLY hides the cookie from JS, so read the token
+        // from a {% csrf_token %} hidden input already on the page.
+        const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        return input ? input.value : "";
     }
     function speak(word) {
         if (!("speechSynthesis" in window)) return false;
