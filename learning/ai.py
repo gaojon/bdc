@@ -93,6 +93,7 @@ Return as JSON:
 Important:
 - Article must flow naturally. Quality over quantity for hit_words.
 - Each hit_word must be exactly as provided (preserve case/hyphens).
+- The article content must be ONLY the article itself: no "Glossary", "Vocabulary", "Word List", or any word-definition section inside it. Word definitions belong only in the separate "glossary" key.
 - Return ONLY the JSON object, no other text."""
 
     return system_prompt, user_prompt
